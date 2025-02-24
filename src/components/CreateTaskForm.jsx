@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 
-export default function CreateTaskForm() {
+export default function CreateTaskForm({ onClose }) {
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -22,43 +23,19 @@ export default function CreateTaskForm() {
     }))
   }
 
-  const handleSubmit = async (e, autoApply = false) => {
+  const navigate = useNavigate()
+// function that onclick goes to 
+  const handleSubmit = (e, autoApply = false) => {
     e.preventDefault()
-    try {
-      // need to replace api/task with the actual api endpoint. 
-      const response = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          autoApply,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to create task')
-      }
-
-      const data = await response.json()
-      console.log('Task created successfully:', data)
-      
-      // Optional: Reset form after successful submission
-      setFormData({
-        taskName: "",
-        category: "",
-        description: "",
-        startDate: "",
-        endDate: "",
-        startTime: "",
-        endTime: "",
-        priority: "",
-      })
-    } catch (error) {
-      console.error('Error creating task:', error)
-      // Handle error (e.g., show error message to user)
+    if (autoApply) {
+      navigate('/autoapplytask')
+    } else {
+      navigate('/addtask')
     }
+  }
+
+  const handleCancel = () => {
+    onClose()
   }
 
   return (
@@ -209,6 +186,7 @@ export default function CreateTaskForm() {
             </button>
             <button
               type="button"
+              onClick={handleCancel}
               className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
             >
               Cancel
