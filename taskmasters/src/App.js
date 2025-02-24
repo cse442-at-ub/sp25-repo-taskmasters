@@ -1,13 +1,18 @@
-import logo from './assets/taskmaster.jpg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
+import './index.css';
 
 function App() {
   return (
-    <div className="App">
-      <h1>TaskMasters</h1>
-      <img src={logo} className="logo"/>
-      <h1>Coming soon</h1>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
   );
 }
 
