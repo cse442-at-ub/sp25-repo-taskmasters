@@ -22,10 +22,43 @@ export default function CreateTaskForm() {
     }))
   }
 
-  const handleSubmit = (e, autoApply = false) => {
+  const handleSubmit = async (e, autoApply = false) => {
     e.preventDefault()
-    // Handle form submission logic here
-    console.log(autoApply ? "Auto Applying:" : "Applying:", formData)
+    try {
+      // need to replace api/task with the actual api endpoint. 
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          autoApply,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create task')
+      }
+
+      const data = await response.json()
+      console.log('Task created successfully:', data)
+      
+      // Optional: Reset form after successful submission
+      setFormData({
+        taskName: "",
+        category: "",
+        description: "",
+        startDate: "",
+        endDate: "",
+        startTime: "",
+        endTime: "",
+        priority: "",
+      })
+    } catch (error) {
+      console.error('Error creating task:', error)
+      // Handle error (e.g., show error message to user)
+    }
   }
 
   return (
