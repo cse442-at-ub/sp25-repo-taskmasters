@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Eye, EyeOff, Settings } from "lucide-react";
+import { Container, Row, Col, Form, Button, Alert } from "react-bootstrap";
 import loginIllustration from "../assets/LoginIllustration.jpeg";
 
-export default function LoginPage() {
+const LoginPage = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const validateForm = () => {
     const newErrors = {};
@@ -43,14 +45,29 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Add your login logic here
-      console.log("Login data:", formData);
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Redirect after successful login
-      window.location.href = "/dashboard";
-    } catch (error) {
-      setErrors({ submit: "Invalid email or password" });
+      const response = await fetch(`${config.apiUrl}/login.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        mode: "cors",
+        credentials: "omit",
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store user data in localStorage or context
+        localStorage.setItem("user", JSON.stringify(data.user));
+        // Redirect to dashboard or home page
+        window.location.href = "#/dashboard";
+      } else {
+        setError(data.message || "Login failed");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -69,143 +86,153 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#e5cef2] flex items-center justify-center p-4">
-      <div className="relative w-full max-w-4xl">
-        {/* Purple circle background */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#9706e9] rounded-full -z-10" />
-
-        {/* Main content */}
-        <div className="bg-white rounded-lg shadow-lg p-8 md:p-12 grid md:grid-cols-2 gap-8">
-          {/* Left side with illustration */}
-          <div className="hidden md:flex items-center justify-center">
-            <img
-              src={loginIllustration}
-              alt="Login illustration"
-              className="w-[300px] h-[300px]"
-            />
-          </div>
-
-          {/* Right side with form */}
-          <div className="w-full max-w-md mx-auto">
-            {/* Logo */}
-            <div className="flex justify-center mb-8">
-              <div className="bg-[#9706e9] p-3 rounded-lg">
-                <Settings className="w-6 h-6 text-white" />
-              </div>
-            </div>
-
-            {/* Brand */}
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold mb-2">TaskMasters</h1>
-              <h2 className="text-4xl font-bold mb-2">Log In</h2>
-              <p className="text-[#717171]">Get organized with TaskMasters</p>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700"
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center py-5"
+      style={{ backgroundColor: "#e5cef2" }}
+    >
+      <Container>
+        <Row className="justify-content-center">
+          <Col xs={12} md={10} lg={8}>
+            <div className="position-relative bg-white rounded-3 shadow p-4 p-md-5">
+              <Row className="g-4">
+                {/* Left side with illustration */}
+                <Col
+                  md={6}
+                  className="d-none d-md-flex align-items-center justify-content-center"
                 >
-                  Email
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email address"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:border-transparent"
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-sm">{errors.email}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Enter your password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:border-transparent pr-10"
+                  <img
+                    src={loginIllustration}
+                    alt="Login illustration"
+                    className="img-fluid"
+                    style={{ maxWidth: "300px", height: "auto" }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
+                </Col>
+
+                {/* Right side with form */}
+                <Col xs={12} md={6}>
+                  {/* Logo */}
+                  <div className="text-center mb-4">
+                    <div
+                      className="d-inline-block p-3 rounded-3"
+                      style={{ backgroundColor: "#9706e9" }}
+                    >
+                      <Settings
+                        className="text-white"
+                        style={{ width: "24px", height: "24px" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Brand */}
+                  <div className="text-center mb-4">
+                    <h1 className="h3 fw-bold mb-2">TaskMasters</h1>
+                    <h2 className="h2 fw-bold mb-2">Log In</h2>
+                    <p className="text-muted">Get organized with TaskMasters</p>
+                  </div>
+
+                  {/* Form */}
+                  <Form onSubmit={handleSubmit} className="mt-4">
+                    {error && (
+                      <Alert variant="danger" className="text-center">
+                        {error}
+                      </Alert>
                     )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-red-500 text-sm">{errors.password}</p>
-                )}
-              </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember"
-                    name="remember"
-                    type="checkbox"
-                    checked={formData.remember}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-[#9706e9] focus:ring-[#9706e9] border-gray-300 rounded"
-                  />
-                  <label
-                    htmlFor="remember"
-                    className="ml-2 block text-sm text-gray-700"
-                  >
-                    Remember me
-                  </label>
-                </div>
-                <a href="#" className="text-sm text-[#9706e9] hover:underline">
-                  Forgot password?
-                </a>
-              </div>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Email</Form.Label>
+                      <Form.Control
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        placeholder="Enter your email address"
+                        isInvalid={!!errors.email}
+                      />
+                      <Form.Control.Feedback type="invalid">
+                        {errors.email}
+                      </Form.Control.Feedback>
+                    </Form.Group>
 
-              {errors.submit && (
-                <p className="text-red-500 text-sm text-center">
-                  {errors.submit}
-                </p>
-              )}
+                    <Form.Group className="mb-3">
+                      <Form.Label>Password</Form.Label>
+                      <div className="position-relative">
+                        <Form.Control
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          placeholder="Enter your password"
+                          isInvalid={!!errors.password}
+                        />
+                        <Button
+                          variant="link"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="position-absolute end-0 top-50 translate-middle-y text-muted"
+                          style={{ padding: "0.375rem" }}
+                        >
+                          {showPassword ? (
+                            <EyeOff style={{ width: "16px", height: "16px" }} />
+                          ) : (
+                            <Eye style={{ width: "16px", height: "16px" }} />
+                          )}
+                        </Button>
+                        <Form.Control.Feedback type="invalid">
+                          {errors.password}
+                        </Form.Control.Feedback>
+                      </div>
+                    </Form.Group>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#9706e9] text-white py-2 px-4 rounded-md hover:bg-[#8005cc] focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "Logging in..." : "Log in"}
-              </button>
-            </form>
-          </div>
-        </div>
+                    <div className="d-flex justify-content-between align-items-center mb-4">
+                      <Form.Check
+                        type="checkbox"
+                        id="remember"
+                        name="remember"
+                        checked={formData.remember}
+                        onChange={handleChange}
+                        label="Remember me"
+                      />
+                      <a
+                        href="#/forgot-password"
+                        className="text-decoration-none"
+                        style={{ color: "#9706e9" }}
+                      >
+                        Forgot password?
+                      </a>
+                    </div>
 
-        {/* Right side illustration */}
-        <div className="absolute right-0 top-0 -z-10">
-          <img
-            src="https://via.placeholder.com/200"
-            alt="Decorative illustration"
-            className="w-[200px] h-[200px]"
-          />
-        </div>
-      </div>
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-100 mb-3"
+                      style={{
+                        backgroundColor: "#9706e9",
+                        borderColor: "#9706e9",
+                      }}
+                    >
+                      {isLoading ? "Logging in..." : "Log in"}
+                    </Button>
+
+                    <div className="text-center">
+                      <p className="text-muted">
+                        Don't have an account?{" "}
+                        <a
+                          href="#/register"
+                          className="text-decoration-none"
+                          style={{ color: "#9706e9" }}
+                        >
+                          Register here
+                        </a>
+                      </p>
+                    </div>
+                  </Form>
+                </Col>
+              </Row>
+            </div>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
-}
+};
+
+export default LoginPage;
