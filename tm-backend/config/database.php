@@ -2,8 +2,6 @@
 // Define secure access constant
 define('SECURE_ACCESS', true);
 
-// Include credentials from secure location outside web root
-$credentialsPath = '/web/CSE442-542/2025-Spring/credentials/team-h-credentials.php';
 
 if (!file_exists($credentialsPath)) {
     // Fallback to local credentials for development
