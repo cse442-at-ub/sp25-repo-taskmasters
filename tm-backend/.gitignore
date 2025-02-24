@@ -1,7 +1,5 @@
-# Environment
-.env
-.env.*
-!.env.example
+# Configuration
+config/credentials.php
 
 # Composer
 /vendor/

@@ -1,15 +1,20 @@
 <?php
+// Define secure access constant
+define('SECURE_ACCESS', true);
 
-$envFile = __DIR__ . '/../.env';
-if (file_exists($envFile)) {
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $_ENV[trim($key)] = trim($value);
-        }
-    }
+// Include credentials from secure location outside web root
+$credentialsPath = '/web/CSE442-542/2025-Spring/credentials/team-h-credentials.php';
+
+if (!file_exists($credentialsPath)) {
+    // Fallback to local credentials for development
+    $credentialsPath = __DIR__ . '/credentials.php';
 }
+
+if (!file_exists($credentialsPath)) {
+    die('Database configuration file not found');
+}
+
+require_once $credentialsPath;
 
 class Database {
     private $host;
@@ -19,10 +24,10 @@ class Database {
     private $conn;
 
     public function __construct() {
-        $this->host = $_ENV['DB_HOST'] ?? 'localhost';
-        $this->database_name = $_ENV['DB_NAME'] ?? 'taskmasters_db';
-        $this->username = $_ENV['DB_USER'] ?? 'root';
-        $this->password = $_ENV['DB_PASS'] ?? '';
+        $this->host = DB_HOST;
+        $this->database_name = DB_NAME;
+        $this->username = DB_USER;
+        $this->password = DB_PASS;
     }
 
     public function getConnection() {
@@ -34,8 +39,16 @@ class Database {
                 $this->password
             );
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            
+            if (DEBUG_MODE) {
+                $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            }
         } catch(PDOException $e) {
-            echo "Connection error: " . $e->getMessage();
+            if (DEBUG_MODE) {
+                echo "Connection error: " . $e->getMessage();
+            } else {
+                echo "Connection error occurred";
+            }
         }
         return $this->conn;
     }

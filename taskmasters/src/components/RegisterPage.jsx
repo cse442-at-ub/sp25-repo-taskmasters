@@ -88,7 +88,7 @@ const RegisterPage = () => {
             if (response.ok) {
                 setSuccess('Registration successful! Redirecting to login...');
                 setTimeout(() => {
-                    window.location.href = '/login';
+                    window.location.href = '#/login';
                 }, 2000);
                 setError('');
                 setFormData({
@@ -228,7 +228,7 @@ const RegisterPage = () => {
                     <p className="text-gray-600">
                         Already have an account?{' '}
                         <a
-                            href="/login"
+                            href="#/login"
                             className="text-[#9706e9] hover:underline"
                         >
                             Login here

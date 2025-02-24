@@ -61,7 +61,7 @@ const LoginPage = () => {
         // Store user data in localStorage or context
         localStorage.setItem('user', JSON.stringify(data.user));
         // Redirect to dashboard or home page
-        window.location.href = '/dashboard';
+                window.location.href = '#/dashboard';
       } else {
         setError(data.message || 'Login failed');
       }
@@ -194,7 +194,7 @@ const LoginPage = () => {
                   </label>
                 </div>
                 <a 
-                  href="/forgot-password" 
+                  href="#/forgot-password" 
                   className="text-sm text-[#9706e9] hover:underline"
                 >
                   Forgot password?
@@ -214,7 +214,7 @@ const LoginPage = () => {
               <p className="text-gray-600">
                 Don't have an account?{' '}
                 <a
-                  href="/register"
+                            href="#/register"
                   className="text-[#9706e9] hover:underline"
                 >
                   Register here
