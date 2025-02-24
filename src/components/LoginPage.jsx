@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff, Settings } from "lucide-react";
+import loginIllustration from "../assets/LoginIllustration.jpeg";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -78,7 +79,7 @@ export default function LoginPage() {
           {/* Left side with illustration */}
           <div className="hidden md:flex items-center justify-center">
             <img
-              src="https://via.placeholder.com/300"
+              src={loginIllustration}
               alt="Login illustration"
               className="w-[300px] h-[300px]"
             />
@@ -207,4 +208,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}
