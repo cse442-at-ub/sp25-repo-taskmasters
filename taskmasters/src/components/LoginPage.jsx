@@ -59,9 +59,7 @@ const LoginPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store user data in localStorage or context
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Redirect to dashboard or home page
                 window.location.href = '#/dashboard';
       } else {
         setError(data.message || 'Login failed');
@@ -79,7 +77,6 @@ const LoginPage = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }

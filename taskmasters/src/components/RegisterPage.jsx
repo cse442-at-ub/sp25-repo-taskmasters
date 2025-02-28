@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Settings, CheckCircle, XCircle } from "lucide-react";
 import "bootstrap/dist/css/bootstrap.min.css";
+import config from '../config';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -38,7 +39,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     validatePassword(formData.password);
-  }, [formData.password]); //Removed formData.confirmPassword
+  }, [formData.password]); 
 
   const isPasswordValid = () => {
     return Object.values(passwordChecks).every((check) => check);
@@ -81,14 +82,31 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Add your registration logic here
-      console.log("Registration data:", formData);
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setSuccess("Registration successful! Redirecting to login...");
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 2000);
+      const response = await fetch(`${config.apiUrl}/register.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        credentials: 'omit',
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess("Registration successful! Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "#/login";
+        }, 2000);
+      } else {
+        setErrors({ submit: data.message || "Registration failed. Please try again." });
+      }
     } catch (error) {
       setErrors({ submit: "Registration failed. Please try again." });
     } finally {
@@ -102,7 +120,6 @@ export default function RegisterPage() {
       ...prev,
       [name]: value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -317,7 +334,7 @@ export default function RegisterPage() {
                 <p className="text-secondary">
                   Already have an account?{" "}
                   <a
-                    href="/login"
+                    href="#/login"
                     style={{ color: "#9706e9", textDecoration: "none" }}
                   >
                     Log in
