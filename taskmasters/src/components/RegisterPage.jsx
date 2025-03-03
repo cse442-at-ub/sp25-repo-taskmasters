@@ -26,23 +26,27 @@ export default function RegisterPage() {
     match: false,
   });
 
-  const validatePassword = (password) => {
-    setPasswordChecks({
+  const validatePassword = (password, confirmPassword) => {
+    return {
       length: password.length >= 8,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
       number: /[0-9]/.test(password),
       special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-      match: password === formData.confirmPassword,
-    });
+      match: password === confirmPassword && password !== "" && confirmPassword !== "",
+    };
   };
 
   useEffect(() => {
-    validatePassword(formData.password);
-  }, [formData.password]); 
+    const checks = validatePassword(formData.password, formData.confirmPassword);
+    setPasswordChecks(checks);
+  }, [formData.password, formData.confirmPassword]);
 
   const isPasswordValid = () => {
-    return Object.values(passwordChecks).every((check) => check);
+    return formData.username && 
+           formData.email && 
+           /\S+@\S+\.\S+/.test(formData.email) &&
+           Object.values(passwordChecks).every((check) => check);
   };
 
   const validateForm = () => {
@@ -120,7 +124,17 @@ export default function RegisterPage() {
       ...prev,
       [name]: value,
     }));
-    if (errors[name]) {
+
+    // Real-time email validation
+    if (name === 'email') {
+      if (!value) {
+        setErrors(prev => ({ ...prev, email: "Email is required" }));
+      } else if (!/\S+@\S+\.\S+/.test(value)) {
+        setErrors(prev => ({ ...prev, email: "Please enter a valid email address (e.g., user@example.com)" }));
+      } else {
+        setErrors(prev => ({ ...prev, email: "" }));
+      }
+    } else if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
@@ -300,12 +314,10 @@ export default function RegisterPage() {
                     satisfied={passwordChecks.special}
                     text="Contains special character"
                   />
-                  {formData.password && formData.confirmPassword && (
-                    <PasswordRequirement
-                      satisfied={formData.password === formData.confirmPassword}
-                      text="Passwords match"
-                    />
-                  )}
+                  <PasswordRequirement
+                    satisfied={passwordChecks.match}
+                    text="Passwords match"
+                  />
                 </div>
               </div>
 

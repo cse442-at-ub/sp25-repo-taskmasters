@@ -12,7 +12,6 @@ export default function DayView() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
 
-
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -106,9 +105,8 @@ export default function DayView() {
   const getCurrentTimePosition = () => {
     const hours = currentTime.getHours();
     const minutes = currentTime.getMinutes();
-    return (hours * 60 + minutes) / 1440 * 100; 
+    return (hours * 60 + minutes) / 1440 * 100;
   };
-
 
   const shouldShowCurrentTime = () => {
     const today = new Date();
