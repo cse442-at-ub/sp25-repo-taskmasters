@@ -1,5 +1,6 @@
 const config = {
-    apiUrl: 'http://localhost:8000/api'
+  apiUrl:
+    "https://se-dev.cse.buffalo.edu/CSE442/2025-Spring/cse-442h/tm-backend/api",
 };
 
 export default config;

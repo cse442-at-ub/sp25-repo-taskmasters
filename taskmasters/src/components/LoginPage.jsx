@@ -1,21 +1,20 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import { Eye, EyeOff, Settings } from "lucide-react";
-import config from '../config';
-import { useNavigate } from 'react-router-dom';
+import config from "../config";
+import loginIllustration from "../assets/LoginIllustration.jpeg";
 
 const LoginPage = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
     remember: false,
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const validateForm = () => {
     const newErrors = {};
@@ -38,7 +37,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -47,28 +46,26 @@ const LoginPage = () => {
 
     try {
       const response = await fetch(`${config.apiUrl}/login.php`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        mode: 'cors',
-        credentials: 'omit',
+        mode: "cors",
+        credentials: "omit",
         body: JSON.stringify(formData),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store user data in localStorage or context
-        localStorage.setItem('user', JSON.stringify(data.user));
-        // Navigate to dayview instead of dashboard
-        navigate('/dayview');
+        localStorage.setItem("user", JSON.stringify(data.user));
+        window.location.href = "#/dashboard";
       } else {
-        setError(data.message || 'Login failed');
+        setError(data.message || "Login failed");
       }
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +77,6 @@ const LoginPage = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -97,7 +93,7 @@ const LoginPage = () => {
           {/* Left side with illustration */}
           <div className="hidden md:flex items-center justify-center">
             <img
-              src="https://via.placeholder.com/300"
+              src={loginIllustration}
               alt="Login illustration"
               className="w-[300px] h-[300px]"
             />
@@ -195,8 +191,8 @@ const LoginPage = () => {
                     Remember me
                   </label>
                 </div>
-                <a 
-                  href="/forgot-password" 
+                <a
+                  href="#/forgot-password"
                   className="text-sm text-[#9706e9] hover:underline"
                 >
                   Forgot password?
@@ -214,23 +210,11 @@ const LoginPage = () => {
 
             <div className="text-center mt-4">
               <p className="text-gray-600">
-                Don't have an account?{' '}
-                <a
-                  href="/register"
-                  className="text-[#9706e9] hover:underline"
-                >
+                Don't have an account?{" "}
+                <a href="#/register" className="text-[#9706e9] hover:underline">
                   Register here
                 </a>
               </p>
-            </div>
-
-            <div className="text-center mt-4">
-              <button
-                onClick={() => navigate('/dayview')}
-                className="text-[#9706e9] hover:underline"
-              >
-                Go to DayView (Temporary)
-              </button>
             </div>
           </div>
         </div>
