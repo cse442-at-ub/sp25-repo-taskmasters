@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Settings } from "lucide-react";
 import config from '../config';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -60,8 +62,8 @@ const LoginPage = () => {
       if (response.ok) {
         // Store user data in localStorage or context
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Redirect to dashboard or home page
-        window.location.href = '/dashboard';
+        // Navigate to dayview instead of dashboard
+        navigate('/dayview');
       } else {
         setError(data.message || 'Login failed');
       }
@@ -220,6 +222,15 @@ const LoginPage = () => {
                   Register here
                 </a>
               </p>
+            </div>
+
+            <div className="text-center mt-4">
+              <button
+                onClick={() => navigate('/dayview')}
+                className="text-[#9706e9] hover:underline"
+              >
+                Go to DayView (Temporary)
+              </button>
             </div>
           </div>
         </div>
