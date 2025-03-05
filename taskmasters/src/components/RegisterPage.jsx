@@ -1,243 +1,375 @@
-import React, { useState, useEffect } from 'react';
-import config from '../config';
-import { CheckCircle, XCircle } from 'lucide-react';
+"use client";
 
-const RegisterPage = () => {
-    const [formData, setFormData] = useState({
-        username: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-    });
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [passwordChecks, setPasswordChecks] = useState({
-        length: false,
-        uppercase: false,
-        lowercase: false,
-        number: false,
-        special: false
-    });
+import { useState, useEffect } from "react";
+import { Eye, EyeOff, Settings, CheckCircle, XCircle } from "lucide-react";
+import "bootstrap/dist/css/bootstrap.min.css";
+import config from "../config";
 
-    const validatePassword = (password) => {
-        setPasswordChecks({
-            length: password.length >= 8,
-            uppercase: /[A-Z]/.test(password),
-            lowercase: /[a-z]/.test(password),
-            number: /[0-9]/.test(password),
-            special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-        });
+export default function RegisterPage() {
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+    match: false,
+  });
+
+  const validatePassword = (password, confirmPassword) => {
+    return {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+      match:
+        password === confirmPassword &&
+        password !== "" &&
+        confirmPassword !== "",
     };
+  };
 
-    const isPasswordValid = () => {
-        return Object.values(passwordChecks).every(check => check);
-    };
-
-    const isFormValid = () => {
-        return (
-            formData.username &&
-            formData.email &&
-            /\S+@\S+\.\S+/.test(formData.email) &&
-            isPasswordValid() &&
-            formData.password === formData.confirmPassword
-        );
-    };
-
-    useEffect(() => {
-        validatePassword(formData.password);
-    }, [formData.password]);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-        
-        if (name === 'password') {
-            validatePassword(value);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        
-        if (!isFormValid()) {
-            setError('Please fix all validation errors before submitting');
-            return;
-        }
-
-        try {
-            const response = await fetch(`${config.apiUrl}/register.php`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                mode: 'cors',
-                credentials: 'omit',
-                body: JSON.stringify({
-                    username: formData.username,
-                    email: formData.email,
-                    password: formData.password
-                }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccess('Registration successful! Redirecting to login...');
-                setTimeout(() => {
-                    window.location.href = '/login';
-                }, 2000);
-                setError('');
-                setFormData({
-                    username: '',
-                    email: '',
-                    password: '',
-                    confirmPassword: ''
-                });
-            } else {
-                setError(data.message || 'Registration failed');
-                setSuccess('');
-            }
-        } catch (err) {
-            setError('An error occurred. Please try again.');
-            setSuccess('');
-        }
-    };
-
-    const PasswordRequirement = ({ satisfied, text }) => (
-        <div className="flex items-center space-x-2">
-            {satisfied ? (
-                <CheckCircle className="w-4 h-4 text-green-500" />
-            ) : (
-                <XCircle className="w-4 h-4 text-red-500" />
-            )}
-            <span className={satisfied ? "text-green-600" : "text-red-600"}>
-                {text}
-            </span>
-        </div>
+  useEffect(() => {
+    const checks = validatePassword(
+      formData.password,
+      formData.confirmPassword
     );
+    setPasswordChecks(checks);
+  }, [formData.password, formData.confirmPassword]);
 
+  const isPasswordValid = () => {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                        Create your account
-                    </h2>
-                </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {error && <div className="text-red-500 text-center">{error}</div>}
-                    {success && <div className="text-green-500 text-center">{success}</div>}
-                    
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div>
-                            <input
-                                name="username"
-                                type="text"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Username"
-                                value={formData.username}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                name="email"
-                                type="email"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
-                                value={formData.email}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                name="password"
-                                type="password"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                name="confirmPassword"
-                                type="password"
-                                required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Confirm Password"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-4 rounded-md border border-gray-200">
-                        <h3 className="text-sm font-medium text-gray-700 mb-2">Password Requirements:</h3>
-                        <div className="space-y-2 text-sm">
-                            <PasswordRequirement 
-                                satisfied={passwordChecks.length} 
-                                text="At least 8 characters long" 
-                            />
-                            <PasswordRequirement 
-                                satisfied={passwordChecks.uppercase} 
-                                text="Contains uppercase letter" 
-                            />
-                            <PasswordRequirement 
-                                satisfied={passwordChecks.lowercase} 
-                                text="Contains lowercase letter" 
-                            />
-                            <PasswordRequirement 
-                                satisfied={passwordChecks.number} 
-                                text="Contains number" 
-                            />
-                            <PasswordRequirement 
-                                satisfied={passwordChecks.special} 
-                                text="Contains special character" 
-                            />
-                            {formData.password && formData.confirmPassword && (
-                                <PasswordRequirement 
-                                    satisfied={formData.password === formData.confirmPassword} 
-                                    text="Passwords match" 
-                                />
-                            )}
-                        </div>
-                    </div>
-
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={!isFormValid()}
-                            className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white 
-                                ${isFormValid() 
-                                    ? 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500' 
-                                    : 'bg-gray-400 cursor-not-allowed'}`}
-                        >
-                            Register
-                        </button>
-                    </div>
-                </form>
-                <div className="text-center mt-4">
-                    <p className="text-gray-600">
-                        Already have an account?{' '}
-                        <a
-                            href="/login"
-                            className="text-[#9706e9] hover:underline"
-                        >
-                            Login here
-                        </a>
-                    </p>
-                </div>
-            </div>
-        </div>
+      formData.username &&
+      formData.email &&
+      /\S+@\S+\.\S+/.test(formData.email) &&
+      Object.values(passwordChecks).every((check) => check)
     );
-};
+  };
 
-export default RegisterPage;
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.username) {
+      newErrors.username = "Username is required";
+    }
+
+    if (!formData.email) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password is required";
+    } else if (!isPasswordValid()) {
+      newErrors.password = "Password does not meet requirements";
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${config.apiUrl}/register.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        mode: "cors",
+        credentials: "omit",
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess("Registration successful! Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "#/login";
+        }, 2000);
+      } else {
+        setErrors({
+          submit: data.message || "Registration failed. Please try again.",
+        });
+      }
+    } catch (error) {
+      setErrors({ submit: "Registration failed. Please try again." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Real-time email validation
+    if (name === "email") {
+      if (!value) {
+        setErrors((prev) => ({ ...prev, email: "Email is required" }));
+      } else if (!/\S+@\S+\.\S+/.test(value)) {
+        setErrors((prev) => ({
+          ...prev,
+          email: "Please enter a valid email address (e.g., user@example.com)",
+        }));
+      } else {
+        setErrors((prev) => ({ ...prev, email: "" }));
+      }
+    } else if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const PasswordRequirement = ({ satisfied, text }) => (
+    <div className="d-flex align-items-center gap-2">
+      {satisfied ? (
+        <CheckCircle className="text-success" size={16} />
+      ) : (
+        <XCircle className="text-danger" size={16} />
+      )}
+      <span className={satisfied ? "text-success" : "text-danger"}>{text}</span>
+    </div>
+  );
+
+  return (
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center p-3"
+      style={{ background: "#e5cef2" }}
+    >
+      <div className="position-relative w-100" style={{ maxWidth: "500px" }}>
+        {/* Purple circle background */}
+        <div
+          className="position-absolute start-0 top-50 translate-middle-y rounded-circle"
+          style={{
+            width: "400px",
+            height: "400px",
+            background: "#9706e9",
+            zIndex: -1,
+            display: "none",
+          }}
+        />
+
+        {/* Main content */}
+        <div className="bg-white rounded-4 shadow-lg p-4 p-md-5">
+          <div className="w-100">
+            {/* Logo */}
+            <div className="d-flex justify-content-center mb-4">
+              <div className="p-3 rounded-3" style={{ background: "#9706e9" }}>
+                <Settings className="text-white" size={24} />
+              </div>
+            </div>
+
+            {/* Brand */}
+            <div className="text-center mb-4">
+              <h1 className="fs-3 fw-bold mb-2">TaskMasters</h1>
+              <h2 className="fs-2 fw-bold mb-2">Register</h2>
+              <p className="text-secondary">Create your TaskMasters account</p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="needs-validation">
+              <div className="mb-3">
+                <label htmlFor="username" className="form-label">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  value={formData.username}
+                  onChange={handleChange}
+                  placeholder="Enter your username"
+                  className={`form-control ${
+                    errors.username ? "is-invalid" : ""
+                  }`}
+                />
+                {errors.username && (
+                  <div className="invalid-feedback">{errors.username}</div>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="email" className="form-label">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="Enter your email address"
+                  className={`form-control ${errors.email ? "is-invalid" : ""}`}
+                />
+                {errors.email && (
+                  <div className="invalid-feedback">{errors.email}</div>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="password" className="form-label">
+                  Password
+                </label>
+                <div className="input-group">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Enter your password"
+                    className={`form-control ${
+                      errors.password ? "is-invalid" : ""
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                  {errors.password && (
+                    <div className="invalid-feedback">{errors.password}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="confirmPassword" className="form-label">
+                  Confirm Password
+                </label>
+                <div className="input-group">
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm your password"
+                    className={`form-control ${
+                      errors.confirmPassword ? "is-invalid" : ""
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff size={20} />
+                    ) : (
+                      <Eye size={20} />
+                    )}
+                  </button>
+                  {errors.confirmPassword && (
+                    <div className="invalid-feedback">
+                      {errors.confirmPassword}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-light p-3 rounded mb-3 border">
+                <h3 className="fs-6 fw-medium text-secondary mb-2">
+                  Password Requirements:
+                </h3>
+                <div className="small">
+                  <PasswordRequirement
+                    satisfied={passwordChecks.length}
+                    text="At least 8 characters long"
+                  />
+                  <PasswordRequirement
+                    satisfied={passwordChecks.uppercase}
+                    text="Contains uppercase letter"
+                  />
+                  <PasswordRequirement
+                    satisfied={passwordChecks.lowercase}
+                    text="Contains lowercase letter"
+                  />
+                  <PasswordRequirement
+                    satisfied={passwordChecks.number}
+                    text="Contains number"
+                  />
+                  <PasswordRequirement
+                    satisfied={passwordChecks.special}
+                    text="Contains special character"
+                  />
+                  <PasswordRequirement
+                    satisfied={passwordChecks.match}
+                    text="Passwords match"
+                  />
+                </div>
+              </div>
+
+              {errors.submit && (
+                <div className="alert alert-danger text-center">
+                  {errors.submit}
+                </div>
+              )}
+              {success && (
+                <div className="alert alert-success text-center">{success}</div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading || !isPasswordValid()}
+                className="btn w-100 text-white mb-3"
+                style={{
+                  backgroundColor: "#9706e9",
+                  opacity: isLoading || !isPasswordValid() ? 0.5 : 1,
+                }}
+              >
+                {isLoading ? "Creating account..." : "Create Account"}
+              </button>
+
+              <div className="text-center">
+                <p className="text-secondary">
+                  Already have an account?{" "}
+                  <a
+                    href="#/login"
+                    style={{ color: "#9706e9", textDecoration: "none" }}
+                  >
+                    Log in
+                  </a>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

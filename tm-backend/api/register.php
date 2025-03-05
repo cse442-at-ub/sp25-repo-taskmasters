@@ -1,14 +1,4 @@
 <?php
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    header("Access-Control-Allow-Origin: http://localhost:3000");
-    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Content-Type, Authorization");
-
-    header("Content-Length: 0");
-    header("Content-Type: text/plain");
-    exit(0);
-}
-
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
@@ -16,38 +6,54 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 
 include_once '../config/database.php';
 
-$database = new Database();
-$db = $database->getConnection();
+try {
+    $database = new Database();
+    $db = $database->getConnection();
 
-$data = json_decode(file_get_contents("php://input"));
+    $input = file_get_contents("php://input");
+    $data = json_decode($input);
 
-if (
-    !empty($data->username) &&
-    !empty($data->email) &&
-    !empty($data->password)
-) {
-    $query = "INSERT INTO users (username, email, password) VALUES (:username, :email, :password)";
+    if (!$data || !$data->username || !$data->email || !$data->password) {
+        throw new Exception("Required fields missing");
+    }
+
+    // Check if email already exists
+    $check_query = "SELECT COUNT(*) FROM users WHERE email = :email";
+    $check_stmt = $db->prepare($check_query);
+    $check_stmt->bindParam(":email", $data->email);
+    $check_stmt->execute();
+    
+    if ($check_stmt->fetchColumn() > 0) {
+        http_response_code(400);
+        echo json_encode(array("message" => "Email already exists"));
+        exit();
+    }
+
+    // Insert new user
+    $query = "INSERT INTO users (username, email, password_hash) VALUES (:username, :email, :password_hash)";
     $stmt = $db->prepare($query);
 
-    // Hash the password
     $hashed_password = password_hash($data->password, PASSWORD_DEFAULT);
 
-    // Bind data
     $stmt->bindParam(":username", $data->username);
     $stmt->bindParam(":email", $data->email);
-    $stmt->bindParam(":password", $hashed_password);
+    $stmt->bindParam(":password_hash", $hashed_password);
 
-    try {
-        if($stmt->execute()) {
-            http_response_code(201);
-            echo json_encode(array("message" => "User created successfully."));
-        }
-    } catch(PDOException $e) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Unable to create user. " . $e->getMessage()));
+    if($stmt->execute()) {
+        http_response_code(201);
+        echo json_encode(array("message" => "User created successfully."));
     }
-} else {
+} catch(PDOException $e) {
+    http_response_code(500);
+    echo json_encode(array(
+        "message" => "Database error",
+        "error" => $e->getMessage()
+    ));
+} catch(Exception $e) {
     http_response_code(400);
-    echo json_encode(array("message" => "Unable to create user. Data is incomplete."));
+    echo json_encode(array(
+        "message" => "Error",
+        "error" => $e->getMessage()
+    ));
 }
 ?>
