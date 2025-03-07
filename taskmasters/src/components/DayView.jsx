@@ -120,12 +120,12 @@ export default function DayView() {
 
   return (
     <React.Fragment>
-      <div className="flex h-screen w-full">
+      <div className="flex flex-col md:flex-row h-screen w-full">
         {/* Sidebar */}
-        <div className={`min-h-screen bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300`}>
+        <div className={`bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-full md:w-16' : 'w-full md:w-64'} transition-all duration-300 min-h-[80px] md:min-h-screen`}>
           {/* Logo Section */}
-          <div className="p-6 bg-[#9706e9] text-white flex justify-between items-center">
-            {!isNavbarCollapsed && <h1 className="text-2xl font-bold tracking-wider">TaskMasters</h1>}
+          <div className="p-4 md:p-6 bg-[#9706e9] text-white flex justify-between items-center">
+            {!isNavbarCollapsed && <h1 className="text-xl md:text-2xl font-bold tracking-wider">TaskMasters</h1>}
             <button 
               onClick={() => setIsNavbarCollapsed(!isNavbarCollapsed)} 
               className="text-white hover:bg-purple-800 p-1 rounded-md transition-all duration-200"
@@ -135,8 +135,8 @@ export default function DayView() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4">
-            <div className="space-y-2">
+          <nav className={`${isNavbarCollapsed ? 'hidden md:flex md:flex-col md:items-center' : 'block'} flex-1 p-4`}>
+            <div className="flex flex-col md:space-y-2">
               <a 
                 href="#/dashboard" 
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
@@ -186,12 +186,12 @@ export default function DayView() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+        <div className="flex-1 bg-gray-50 p-4 md:p-8 overflow-y-auto">
           {/* Header with Date Navigation */}
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-bold">{formatDate()}</h1>
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-8 space-y-4 md:space-y-0">
+            <div className="flex items-center gap-2 md:gap-4">
+              <h1 className="text-2xl md:text-4xl font-bold">{formatDate()}</h1>
+              <div className="flex items-center gap-1 md:gap-2">
                 <button 
                   onClick={handlePreviousDay} 
                   className="p-2 hover:text-[#9706e9] transition-colors duration-200 rounded-full hover:bg-purple-50"
@@ -214,15 +214,15 @@ export default function DayView() {
             </div>
             <button 
               onClick={handleAddTask}
-              className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
+              className="bg-[#9706e9] text-white px-4 py-2 md:px-6 md:py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
             >
-              <PlusCircle size={20} />
+              <PlusCircle size={18} />
               <span>Add Task</span>
             </button>
           </div>
 
           {/* View Toggle */}
-          <div className="flex mb-8">
+          <div className="flex mb-4 md:mb-8">
             <button className="bg-[#9706e9] text-white px-4 py-2 rounded-l font-semibold">Day</button>
             <button 
               onClick={() => navigate('/week-view')} 
@@ -234,20 +234,20 @@ export default function DayView() {
           </div>
 
           {/* Schedule Grid */}
-          <div className="relative">
+          <div className="relative overflow-x-auto">
             {/* Time slots */}
-            <div className="absolute left-0 top-0 w-20 h-full">
+            <div className="absolute left-0 top-0 w-16 md:w-20 h-full">
               {timeSlots.map((time, index) => (
-                <div key={index} className="h-24 flex items-start justify-end pr-4">
-                  <span className="text-sm text-gray-500">{time}</span>
+                <div key={index} className="h-20 md:h-24 flex items-start justify-end pr-2 md:pr-4">
+                  <span className="text-xs md:text-sm text-gray-500">{time}</span>
                 </div>
               ))}
             </div>
 
             {/* Grid lines */}
-            <div className="ml-20 relative border-l border-gray-200">
+            <div className="ml-16 md:ml-20 relative border-l border-gray-200 min-w-[600px] md:min-w-0">
               {timeSlots.map((_, index) => (
-                <div key={index} className="h-24 border-b border-gray-200" />
+                <div key={index} className="h-20 md:h-24 border-b border-gray-200" />
               ))}
 
               {/* Current time indicator */}

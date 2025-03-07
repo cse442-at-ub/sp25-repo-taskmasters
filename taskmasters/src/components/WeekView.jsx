@@ -221,12 +221,12 @@ export default function WeekView() {
 
   return (
     <React.Fragment>
-      <div className="flex h-screen w-full">
+      <div className="flex flex-col md:flex-row h-screen w-full">
         {/* Sidebar */}
-        <div className={`min-h-screen bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300`}>
+        <div className={`bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-full md:w-16' : 'w-full md:w-64'} transition-all duration-300 min-h-[80px] md:min-h-screen`}>
           {/* Logo Section */}
-          <div className="p-6 bg-[#9706e9] text-white flex justify-between items-center">
-            {!isNavbarCollapsed && <h1 className="text-2xl font-bold tracking-wider">TaskMasters</h1>}
+          <div className="p-4 md:p-6 bg-[#9706e9] text-white flex justify-between items-center">
+            {!isNavbarCollapsed && <h1 className="text-xl md:text-2xl font-bold tracking-wider">TaskMasters</h1>}
             <button 
               onClick={() => setIsNavbarCollapsed(!isNavbarCollapsed)} 
               className="text-white hover:bg-purple-800 p-1 rounded-md transition-all duration-200"
@@ -236,8 +236,8 @@ export default function WeekView() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4">
-            <div className="space-y-2">
+          <nav className={`${isNavbarCollapsed ? 'hidden md:flex md:flex-col md:items-center' : 'block'} flex-1 p-4`}>
+            <div className="flex flex-col md:space-y-2">
               <a
                 href="#/dashboard"
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
@@ -287,12 +287,12 @@ export default function WeekView() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+        <div className="flex-1 bg-gray-50 p-4 md:p-8 overflow-y-auto">
           {/* Header with Date Navigation */}
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-bold">{formatMonthYear()}</h1>
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-8 space-y-4 md:space-y-0">
+            <div className="flex items-center gap-2 md:gap-4">
+              <h1 className="text-2xl md:text-4xl font-bold">{formatMonthYear()}</h1>
+              <div className="flex items-center gap-1 md:gap-2">
                 <button
                   onClick={handlePreviousWeek}
                   className="p-2 hover:text-[#9706e9] transition-colors duration-200 rounded-full hover:bg-purple-50"
@@ -315,15 +315,15 @@ export default function WeekView() {
             </div>
             <button
               onClick={handleAddTask}
-              className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
+              className="bg-[#9706e9] text-white px-4 py-2 md:px-6 md:py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
             >
-              <PlusCircle size={20} />
+              <PlusCircle size={18} />
               <span>Add Task</span>
             </button>
           </div>
 
           {/* View Toggle */}
-          <div className="flex mb-8">
+          <div className="flex mb-4 md:mb-8">
             <button
               onClick={() => navigate('/calendar')}
               className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-l font-semibold hover:bg-[#9706e9]"
@@ -343,122 +343,98 @@ export default function WeekView() {
           </div>
 
           {/* Week Calendar Grid */}
-          <div className="bg-white rounded-lg shadow-md">
-            {/* Days of the week header */}
-            <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
-              <div className="p-4 border-r"></div>
-              {weekDates.map((date, index) => {
-                const dayNames = [
-                  "Sun",
-                  "Mon",
-                  "Tue",
-                  "Wed",
-                  "Thu",
-                  "Fri",
-                  "Sat",
-                ];
-                const isCurrentDay = isToday(date);
-
-                return (
-                  <div
-                    key={index}
-                    className={`p-4 text-center border-r ${
-                      isCurrentDay ? "bg-purple-50" : ""
-                    }`}
-                  >
-                    <div className="font-medium">{dayNames[date.getDay()]}</div>
+          <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+            <div className="min-w-[800px] md:min-w-0">
+              {/* Days of the week header */}
+              <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
+                <div className="p-2 md:p-4 border-r"></div>
+                {weekDates.map((date, index) => {
+                  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                  const isCurrentDay = isToday(date);
+                  return (
                     <div
-                      className={`text-2xl ${
-                        isCurrentDay ? "text-[#9706e9] font-bold" : ""
-                      }`}
+                      key={index}
+                      className={`p-2 md:p-4 text-center border-r ${isCurrentDay ? "bg-purple-50" : ""}`}
                     >
-                      {date.getDate()}
+                      <div className="text-sm md:font-medium">{dayNames[date.getDay()]}</div>
+                      <div className={`text-lg md:text-2xl ${isCurrentDay ? "text-[#9706e9] font-bold" : ""}`}>
+                        {date.getDate()}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            {/* Time slots and events */}
-            <div className="relative">
-              {/* Time slots */}
-              {timeSlots.map((timeSlot, timeIndex) => (
-                <div key={timeIndex} className="grid grid-cols-8 border-b">
-                  {/* Time label */}
-                  <div className="p-4 border-r text-right text-sm text-gray-500 sticky left-0 bg-white">
-                    {timeSlot}
-                  </div>
-
-                  {/* Day columns - empty cells for the grid */}
-                  {weekDates.map((date, dayIndex) => (
-                    <div
-                      key={dayIndex}
-                      className={`p-2 border-r relative min-h-[80px] ${
-                        isToday(date) ? "bg-purple-50" : ""
-                      }`}
-                    >
-                      {/* Current time indicator */}
-                      {shouldShowCurrentTimeForDay(date) &&
-                        timeIndex === currentTime.getHours() && (
+              {/* Time grid with slots */}
+              <div className="relative">
+                {timeSlots.map((timeSlot, timeIndex) => (
+                  <div key={timeIndex} className="grid grid-cols-8 border-b">
+                    {/* Time label */}
+                    <div className="p-2 md:p-4 border-r text-right text-xs md:text-sm text-gray-500 sticky left-0 bg-white">
+                      {timeSlot}
+                    </div>
+                    
+                    {/* Day columns */}
+                    {weekDates.map((date, dayIndex) => (
+                      <div
+                        key={dayIndex}
+                        className={`p-1 md:p-2 border-r relative min-h-[60px] md:min-h-[80px] ${isToday(date) ? "bg-purple-50" : ""}`}
+                      >
+                        {/* Current time indicator */}
+                        {shouldShowCurrentTimeForDay(date) && timeIndex === currentTime.getHours() && (
                           <div
                             className="absolute left-0 w-full border-t-2 border-red-500 z-20"
-                            style={{
-                              top: `${(currentTime.getMinutes() / 60) * 100}%`,
-                            }}
+                            style={{ top: `${(currentTime.getMinutes() / 60) * 100}%` }}
                           >
                             <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
                           </div>
                         )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-
-              {/* Tasks - positioned absolutely over the grid */}
-              {weekDates.map((date, dayIndex) => {
-                const tasksForThisDay = getTasksForDay(date);
+                      </div>
+                    ))}
+                  </div>
+                ))}
                 
-                return (
-                  <React.Fragment key={dayIndex}>
-                    {tasksForThisDay.map((task, taskIndex) => {
-                      // Calculate position and height
-                      const startHour = Math.floor(task.startMinute / 60);
-                      const startMinuteInHour = task.startMinute % 60;
-                      const durationHours = task.duration / 60;
-                      
-                      // Position: 1 column for time + dayIndex for the day + 1 for 1-based index
-                      const columnStart = dayIndex + 2;
-                      
-                      return (
-                        <div
-                          key={`${dayIndex}-${taskIndex}`}
-                          className={`${getTaskColor(task.priority)} 
-                                     p-2 rounded-md shadow-sm hover:shadow-md 
-                                     transition-all duration-200 cursor-pointer
-                                     absolute z-10 mx-2 overflow-hidden`}
-                          style={{
-                            top: `${startHour * 80 + (startMinuteInHour / 60) * 80}px`,
-                            height: `${Math.max(durationHours * 80, 40)}px`,
-                            left: `calc(${(columnStart - 1) / 8} * 100%)`,
-                            width: `calc(100% / 8 - 16px)`,
-                          }}
-                          onClick={() => {
-                            setSelectedTaskId(task.id);
-                            setSelectedTaskDate(task.date.toISOString().split('T')[0]);
-                          }}
-                        >
-                          <div className="font-medium text-sm truncate">
-                            {task.title}
-                          </div>
-                          <div className="text-xs text-gray-600 truncate">
-                            {task.category}
-                          </div>
+                {/* Tasks positioned absolutely */}
+                {weekDates.map((date, dayIndex) => {
+                  const tasksForThisDay = getTasksForDay(date);
+                  return tasksForThisDay.map((task, taskIndex) => {
+                    // Calculate position and height
+                    const startHour = Math.floor(task.startMinute / 60);
+                    const startMinuteInHour = task.startMinute % 60;
+                    const durationHours = task.duration / 60;
+                    
+                    // Position: 1 column for time + dayIndex for the day + 1 for 1-based index
+                    const columnStart = dayIndex + 2;
+                    
+                    return (
+                      <div
+                        key={`${dayIndex}-${taskIndex}`}
+                        className={`${getTaskColor(task.priority)} 
+                                   p-2 rounded-md shadow-sm hover:shadow-md 
+                                   transition-all duration-200 cursor-pointer
+                                   absolute z-10 mx-2 overflow-hidden`}
+                        style={{
+                          top: `${startHour * 60 + (startMinuteInHour / 60) * 60}px`,
+                          height: `${Math.max(durationHours * 60, 30)}px`,
+                          left: `calc(${(columnStart - 1) / 8} * 100%)`,
+                          width: `calc(100% / 8 - 16px)`,
+                        }}
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setSelectedTaskDate(task.date.toISOString().split('T')[0]);
+                        }}
+                      >
+                        <div className="font-medium text-xs md:text-sm truncate">
+                          {task.title}
                         </div>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
+                        <div className="text-[10px] md:text-xs text-gray-600 truncate">
+                          {task.category}
+                        </div>
+                      </div>
+                    );
+                  });
+                })}
+              </div>
             </div>
           </div>
         </div>

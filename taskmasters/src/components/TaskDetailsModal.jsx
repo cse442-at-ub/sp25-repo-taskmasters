@@ -10,6 +10,8 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const editModeRef = useRef(false); // Use a ref to track edit mode
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [selectedDays, setSelectedDays] = useState([]);
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -19,7 +21,11 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
     startTime: "",
     endTime: "",
     priority: "",
+    recurring: 0,
+    recurringDays: ""
   });
+
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const navigate = useNavigate();
 
@@ -98,6 +104,17 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
           
           // Only update form data if not in edit mode
           if (!editModeRef.current) {
+            // Check if task is recurring
+            const isTaskRecurring = taskData.Task_recurring === "1";
+            setIsRecurring(isTaskRecurring);
+            
+            // Parse recurring days if available
+            let recurringDays = [];
+            if (isTaskRecurring && taskData.recurringDays) {
+              recurringDays = taskData.recurringDays.split(',');
+              setSelectedDays(recurringDays);
+            }
+            
             setFormData({
               taskName: taskData.task_Title,
               category: taskData.task_tags,
@@ -107,6 +124,8 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
               startTime: startTime,
               endTime: endTime,
               priority: taskData.task_priority,
+              recurring: isTaskRecurring ? 1 : 0,
+              recurringDays: taskData.recurringDays || ""
             });
           }
         } else {
@@ -128,6 +147,27 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const toggleRecurring = () => {
+    setIsRecurring(!isRecurring);
+    setFormData(prev => ({
+      ...prev,
+      recurring: !isRecurring ? 1 : 0,
+      recurringDays: !isRecurring ? selectedDays.join(',') : ""
+    }));
+  };
+
+  const toggleDay = (day) => {
+    const newSelectedDays = selectedDays.includes(day)
+      ? selectedDays.filter(d => d !== day)
+      : [...selectedDays, day];
+    
+    setSelectedDays(newSelectedDays);
+    setFormData(prev => ({
+      ...prev,
+      recurringDays: newSelectedDays.join(',')
     }));
   };
 
@@ -190,8 +230,12 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this task?")) {
+  const handleDelete = async (deleteAllRecurring = false) => {
+    const confirmMessage = deleteAllRecurring 
+      ? "Are you sure you want to delete all instances of this recurring task?" 
+      : "Are you sure you want to delete this task?";
+      
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -202,7 +246,11 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
       }
 
       // Send DELETE request with taskId as URL parameter
-      const response = await fetch(`${config.apiUrl}/tasks.php?task_id=${taskId}`, {
+      const url = deleteAllRecurring 
+        ? `${config.apiUrl}/tasks.php?task_id=${taskId}&deleteRecurring=true` 
+        : `${config.apiUrl}/tasks.php?task_id=${taskId}`;
+        
+      const response = await fetch(url, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -385,6 +433,54 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
             </div>
           </div>
 
+          {/* Recurring Task Section */}
+          <div className="mt-4">
+            <div className="flex items-center mb-2">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={isEditing ? toggleRecurring : undefined}
+                  disabled={!isEditing}
+                  className={`w-4 h-4 text-[#9706e9] border-gray-300 rounded focus:ring-[#9706e9] ${
+                    !isEditing ? "cursor-not-allowed" : ""
+                  }`}
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Recurring Task</span>
+              </label>
+            </div>
+            
+            {isRecurring && (
+              <div className={`mt-2 p-4 ${isEditing ? 'bg-purple-50' : 'bg-gray-50'} rounded-md`}>
+                <p className="text-sm text-gray-700 mb-2">
+                  {isEditing ? "Select days of the week:" : "Recurring on:"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {daysOfWeek.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={isEditing ? () => toggleDay(day) : undefined}
+                      disabled={!isEditing}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors duration-200 ${
+                        selectedDays.includes(day)
+                          ? isEditing ? 'bg-[#9706e9] text-white' : 'bg-purple-300 text-white'
+                          : isEditing ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100' : 'bg-gray-200 text-gray-500'
+                      } ${!isEditing ? "cursor-default" : ""}`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+                {isEditing && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Tasks will be created for each selected day between the start and end dates.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
@@ -450,7 +546,7 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
             </div>
           </div>
 
-          <div className="flex gap-4 justify-start">
+          <div className="flex flex-wrap gap-4 justify-start">
             {isEditing ? (
               <>
                 <button
@@ -478,11 +574,20 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
                 </button>
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => handleDelete(false)}
                   className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200"
                 >
                   Delete
                 </button>
+                {isRecurring && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(true)}
+                    className="px-6 py-2 bg-red-700 text-white rounded-md hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200"
+                  >
+                    Delete All Recurring
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleCancel}

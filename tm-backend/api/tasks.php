@@ -36,7 +36,46 @@ try {
         }
 
        
-        if ($hasRecurringColumn) {
+        // Check if recurringDays column exists
+        $hasRecurringDaysColumn = false;
+        try {
+            $checkColumnQuery = "SHOW COLUMNS FROM tasks LIKE 'recurringDays'";
+            $checkColumnStmt = $db->prepare($checkColumnQuery);
+            $checkColumnStmt->execute();
+            $hasRecurringDaysColumn = $checkColumnStmt->rowCount() > 0;
+        } catch(Exception $e) {
+            $hasRecurringDaysColumn = false;
+        }
+
+        if ($hasRecurringColumn && $hasRecurringDaysColumn) {
+            $query = "INSERT INTO tasks (
+                task_Title, 
+                task_description, 
+                task_duration, 
+                task_dueDate, 
+                task_tags, 
+                task_priority, 
+                user_id, 
+                Task_time,
+                task_startDate,
+                created_time,
+                Task_recurring,
+                recurringDays
+            ) VALUES (
+                :title,
+                :description,
+                :duration,
+                :dueDate,
+                :tags,
+                :priority,
+                :userId,
+                :time,
+                :startDate,
+                NOW(),
+                :recurring,
+                :recurringDays
+            )";
+        } elseif ($hasRecurringColumn) {
             $query = "INSERT INTO tasks (
                 task_Title, 
                 task_description, 
@@ -106,7 +145,12 @@ try {
         $stmt->bindParam(":startDate", $startDate);
         
 
-        if ($hasRecurringColumn) {
+        if ($hasRecurringColumn && $hasRecurringDaysColumn) {
+            $recurring = isset($data->recurring) ? (int)$data->recurring : 0;
+            $recurringDays = isset($data->recurringDays) ? $data->recurringDays : "";
+            $stmt->bindParam(":recurring", $recurring);
+            $stmt->bindParam(":recurringDays", $recurringDays);
+        } elseif ($hasRecurringColumn) {
             $recurring = isset($data->recurring) ? (int)$data->recurring : 0;
             $stmt->bindParam(":recurring", $recurring);
         }
@@ -118,7 +162,7 @@ try {
                 "id" => $db->lastInsertId()
             ));
         }
-    } else if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Check if this is a delete operation via GET (for testing purposes)
         $action = isset($_GET['action']) ? $_GET['action'] : '';
         
@@ -211,7 +255,7 @@ try {
                 $endDate = $_GET['endDate'];
                 $userId = isset($_GET['userId']) ? $_GET['userId'] : null;
 
-                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time, task_startDate as task_date FROM tasks WHERE task_startDate BETWEEN :startDate AND :endDate";
+                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time, task_startDate as task_date, recurringDays FROM tasks WHERE task_startDate BETWEEN :startDate AND :endDate";
                 if ($userId) {
                     $query .= " AND user_id = :userId";
                 }
@@ -227,7 +271,7 @@ try {
                 $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
                 $userId = isset($_GET['userId']) ? $_GET['userId'] : null;
 
-                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time FROM tasks WHERE task_startDate = :date";
+                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time, recurringDays FROM tasks WHERE task_startDate = :date";
                 if ($userId) {
                     $query .= " AND user_id = :userId";
                 }
@@ -246,7 +290,7 @@ try {
             http_response_code(200);
             echo json_encode($tasks);
         }
-    } else if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         $input = file_get_contents("php://input");
         $data = json_decode($input);
 
@@ -278,17 +322,66 @@ try {
         $dueDate = date('Y-m-d', strtotime($data->endDate));
         $taskTime = date('Y-m-d H:i:s', strtotime($data->startDate . ' ' . $data->startTime));
 
+        // Check if Task_recurring column exists
+        $hasRecurringColumn = false;
+        try {
+            $checkColumnQuery = "SHOW COLUMNS FROM tasks LIKE 'Task_recurring'";
+            $checkColumnStmt = $db->prepare($checkColumnQuery);
+            $checkColumnStmt->execute();
+            $hasRecurringColumn = $checkColumnStmt->rowCount() > 0;
+        } catch(Exception $e) {
+            $hasRecurringColumn = false;
+        }
+        
+        // Check if recurringDays column exists
+        $hasRecurringDaysColumn = false;
+        try {
+            $checkColumnQuery = "SHOW COLUMNS FROM tasks LIKE 'recurringDays'";
+            $checkColumnStmt = $db->prepare($checkColumnQuery);
+            $checkColumnStmt->execute();
+            $hasRecurringDaysColumn = $checkColumnStmt->rowCount() > 0;
+        } catch(Exception $e) {
+            $hasRecurringDaysColumn = false;
+        }
+
         // Update the task
-        $query = "UPDATE tasks SET 
-            task_Title = :title,
-            task_description = :description,
-            task_duration = :duration,
-            task_dueDate = :dueDate,
-            task_tags = :tags,
-            task_priority = :priority,
-            Task_time = :time,
-            task_startDate = :startDate
-            WHERE task_id = :taskId AND user_id = :userId";
+        if ($hasRecurringColumn && $hasRecurringDaysColumn) {
+            $query = "UPDATE tasks SET 
+                task_Title = :title,
+                task_description = :description,
+                task_duration = :duration,
+                task_dueDate = :dueDate,
+                task_tags = :tags,
+                task_priority = :priority,
+                Task_time = :time,
+                task_startDate = :startDate,
+                Task_recurring = :recurring,
+                recurringDays = :recurringDays
+                WHERE task_id = :taskId AND user_id = :userId";
+        } elseif ($hasRecurringColumn) {
+            $query = "UPDATE tasks SET 
+                task_Title = :title,
+                task_description = :description,
+                task_duration = :duration,
+                task_dueDate = :dueDate,
+                task_tags = :tags,
+                task_priority = :priority,
+                Task_time = :time,
+                task_startDate = :startDate,
+                Task_recurring = :recurring
+                WHERE task_id = :taskId AND user_id = :userId";
+        } else {
+            $query = "UPDATE tasks SET 
+                task_Title = :title,
+                task_description = :description,
+                task_duration = :duration,
+                task_dueDate = :dueDate,
+                task_tags = :tags,
+                task_priority = :priority,
+                Task_time = :time,
+                task_startDate = :startDate
+                WHERE task_id = :taskId AND user_id = :userId";
+        }
 
         $stmt = $db->prepare($query);
         $stmt->bindParam(":title", $data->taskName);
@@ -301,6 +394,16 @@ try {
         $stmt->bindParam(":startDate", $startDate);
         $stmt->bindParam(":taskId", $data->taskId);
         $stmt->bindParam(":userId", $data->userId);
+        
+        if ($hasRecurringColumn && $hasRecurringDaysColumn) {
+            $recurring = isset($data->recurring) ? (int)$data->recurring : 0;
+            $recurringDays = isset($data->recurringDays) ? $data->recurringDays : "";
+            $stmt->bindParam(":recurring", $recurring);
+            $stmt->bindParam(":recurringDays", $recurringDays);
+        } elseif ($hasRecurringColumn) {
+            $recurring = isset($data->recurring) ? (int)$data->recurring : 0;
+            $stmt->bindParam(":recurring", $recurring);
+        }
 
         if ($stmt->execute()) {
             http_response_code(200);
@@ -309,7 +412,7 @@ try {
             http_response_code(500);
             echo json_encode(array("message" => "Failed to update task"));
         }
-    } else if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         // Parse the URL to get the task ID
         $url_components = parse_url($_SERVER['REQUEST_URI']);
         parse_str($url_components['query'] ?? '', $params);
