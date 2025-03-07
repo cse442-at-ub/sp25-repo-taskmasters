@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CreateTaskForm from './CreateTaskModal';
 import TaskDetailView from './TaskDetailsModal';
-import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle, Menu, X } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import config from '../config';
 
@@ -13,6 +13,7 @@ export default function DayView() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -121,10 +122,16 @@ export default function DayView() {
     <React.Fragment>
       <div className="flex h-screen w-full">
         {/* Sidebar */}
-        <div className="min-h-screen bg-white shadow-lg flex flex-col w-64 transition-all duration-300">
+        <div className={`min-h-screen bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300`}>
           {/* Logo Section */}
-          <div className="p-6 bg-[#9706e9] text-white">
-            <h1 className="text-2xl font-bold tracking-wider">TaskMasters</h1>
+          <div className="p-6 bg-[#9706e9] text-white flex justify-between items-center">
+            {!isNavbarCollapsed && <h1 className="text-2xl font-bold tracking-wider">TaskMasters</h1>}
+            <button 
+              onClick={() => setIsNavbarCollapsed(!isNavbarCollapsed)} 
+              className="text-white hover:bg-purple-800 p-1 rounded-md transition-all duration-200"
+            >
+              <Menu size={20} />
+            </button>
           </div>
 
           {/* Navigation */}
@@ -133,30 +140,34 @@ export default function DayView() {
               <a 
                 href="#/dashboard" 
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Dashboard"
               >
                 <LayoutDashboard size={20} />
-                <span className="text-lg">Dashboard</span>
+                {!isNavbarCollapsed && <span className="text-lg">Dashboard</span>}
               </a>
               <a 
                 href="#/calendar" 
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Calendar"
               >
                 <Calendar size={20} />
-                <span className="text-lg">Calendar</span>
+                {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
               </a>
               <a 
                 href="#/avatar" 
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Avatar"
               >
                 <User size={20} />
-                <span className="text-lg">Avatar</span>
+                {!isNavbarCollapsed && <span className="text-lg">Avatar</span>}
               </a>
               <a 
                 href="#/achievements" 
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Achievements"
               >
                 <Trophy size={20} />
-                <span className="text-lg">Achievements</span>
+                {!isNavbarCollapsed && <span className="text-lg">Achievements</span>}
               </a>
             </div>
           </nav>
@@ -166,9 +177,10 @@ export default function DayView() {
             <a 
               href="#/login" 
               className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-500 rounded-lg transition-all duration-200"
+              title="Logout"
             >
               <LogOut size={20} />
-              <span className="text-lg">Logout</span>
+              {!isNavbarCollapsed && <span className="text-lg">Logout</span>}
             </a>
           </div>
         </div>
@@ -212,7 +224,12 @@ export default function DayView() {
           {/* View Toggle */}
           <div className="flex mb-8">
             <button className="bg-[#9706e9] text-white px-4 py-2 rounded-l font-semibold">Day</button>
-            <button className="bg-[#9706e9]/70 text-white px-4 py-2 border-l border-r border-purple-800 hover:bg-[#9706e9]">Week</button>
+            <button 
+              onClick={() => navigate('/week-view')} 
+              className="bg-[#9706e9]/70 text-white px-4 py-2 border-l border-r border-purple-800 hover:bg-[#9706e9]"
+            >
+              Week
+            </button>
             <button className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r hover:bg-[#9706e9]">Month</button>
           </div>
 

@@ -205,19 +205,39 @@ try {
                 }
             }
         } else {
-            $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
-            $userId = isset($_GET['userId']) ? $_GET['userId'] : null;
+            // Check if we're fetching for a date range or a single date
+            if (isset($_GET['startDate']) && isset($_GET['endDate'])) {
+                $startDate = $_GET['startDate'];
+                $endDate = $_GET['endDate'];
+                $userId = isset($_GET['userId']) ? $_GET['userId'] : null;
 
-            $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time FROM tasks WHERE task_startDate = :date";
-            if ($userId) {
-                $query .= " AND user_id = :userId";
-            }
-            $query .= " ORDER BY Task_time ASC";
+                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time, task_startDate as task_date FROM tasks WHERE task_startDate BETWEEN :startDate AND :endDate";
+                if ($userId) {
+                    $query .= " AND user_id = :userId";
+                }
+                $query .= " ORDER BY task_startDate ASC, Task_time ASC";
 
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(":date", $date);
-            if ($userId) {
-                $stmt->bindParam(":userId", $userId);
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(":startDate", $startDate);
+                $stmt->bindParam(":endDate", $endDate);
+                if ($userId) {
+                    $stmt->bindParam(":userId", $userId);
+                }
+            } else {
+                $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+                $userId = isset($_GET['userId']) ? $_GET['userId'] : null;
+
+                $query = "SELECT *, DATE_FORMAT(Task_time, '%H:%i:%s') as formatted_time FROM tasks WHERE task_startDate = :date";
+                if ($userId) {
+                    $query .= " AND user_id = :userId";
+                }
+                $query .= " ORDER BY Task_time ASC";
+
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(":date", $date);
+                if ($userId) {
+                    $stmt->bindParam(":userId", $userId);
+                }
             }
 
             $stmt->execute();
