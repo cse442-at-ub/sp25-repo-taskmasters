@@ -1,7 +1,7 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST, GET, DELETE, OPTIONS");
+header("Access-Control-Allow-Methods: POST, GET, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
 // Handle preflight OPTIONS request
@@ -225,6 +225,69 @@ try {
             
             http_response_code(200);
             echo json_encode($tasks);
+        }
+    } else if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
+
+        if (!$data) {
+            throw new Exception("No input received");
+        }
+
+        if (!isset($data->taskId) || !isset($data->userId)) {
+            http_response_code(400);
+            echo json_encode(array("message" => "Task ID and User ID are required"));
+            exit;
+        }
+
+        // Check if the task exists and belongs to the user
+        $checkQuery = "SELECT * FROM tasks WHERE task_id = :taskId AND user_id = :userId";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindParam(":taskId", $data->taskId);
+        $checkStmt->bindParam(":userId", $data->userId);
+        $checkStmt->execute();
+
+        if ($checkStmt->rowCount() === 0) {
+            http_response_code(404);
+            echo json_encode(array("message" => "Task not found or does not belong to the user"));
+            exit;
+        }
+
+        // Format dates and times
+        $startDate = date('Y-m-d', strtotime($data->startDate));
+        $dueDate = date('Y-m-d', strtotime($data->endDate));
+        $taskTime = date('Y-m-d H:i:s', strtotime($data->startDate . ' ' . $data->startTime));
+
+        // Update the task
+        $query = "UPDATE tasks SET 
+            task_Title = :title,
+            task_description = :description,
+            task_duration = :duration,
+            task_dueDate = :dueDate,
+            task_tags = :tags,
+            task_priority = :priority,
+            Task_time = :time,
+            task_startDate = :startDate
+            WHERE task_id = :taskId AND user_id = :userId";
+
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(":title", $data->taskName);
+        $stmt->bindParam(":description", $data->description);
+        $stmt->bindParam(":duration", $data->duration);
+        $stmt->bindParam(":dueDate", $dueDate);
+        $stmt->bindParam(":tags", $data->category);
+        $stmt->bindParam(":priority", $data->priority);
+        $stmt->bindParam(":time", $taskTime);
+        $stmt->bindParam(":startDate", $startDate);
+        $stmt->bindParam(":taskId", $data->taskId);
+        $stmt->bindParam(":userId", $data->userId);
+
+        if ($stmt->execute()) {
+            http_response_code(200);
+            echo json_encode(array("message" => "Task updated successfully"));
+        } else {
+            http_response_code(500);
+            echo json_encode(array("message" => "Failed to update task"));
         }
     } else if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         // Parse the URL to get the task ID

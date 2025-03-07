@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CreateTaskForm from './CreateTaskModal';
+import TaskDetailView from './TaskDetailsModal';
 import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import config from '../config';
@@ -11,6 +12,7 @@ export default function DayView() {
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -254,6 +256,7 @@ export default function DayView() {
                     height: `${(task.duration / 1440) * 100}%`,
                     minHeight: '2rem'
                   }}
+                  onClick={() => setSelectedTaskId(task.id)}
                 >
                   <div className="font-medium truncate">{task.title}</div>
                   <div className="text-right text-gray-600 text-sm bg-white/30 px-2 py-1 rounded-full truncate mt-1">{task.category}</div>
@@ -269,6 +272,14 @@ export default function DayView() {
             setIsModalOpen(false);
             fetchTasks();
           }} 
+        />
+      )}
+      {selectedTaskId && (
+        <TaskDetailView 
+          taskId={selectedTaskId} 
+          selectedDate={selectedDate.toISOString().split('T')[0]}
+          onClose={() => setSelectedTaskId(null)} 
+          onTaskUpdated={fetchTasks} 
         />
       )}
     </React.Fragment>
