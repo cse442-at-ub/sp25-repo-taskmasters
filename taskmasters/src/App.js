@@ -5,6 +5,7 @@ import RegisterPage from './components/RegisterPage';
 import DayView from './components/DayView';
 import WeekView from './components/WeekView';
 import './index.css';
+import MonthView from './components/MonthView';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/achievements" element={<div>Achievements Coming Soon</div>} />
         <Route path="/create-task" element={<div>Create Task Coming Soon</div>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/calendar-month" element ={<MonthView/>}/>
       </Routes>
     </Router>
   );
