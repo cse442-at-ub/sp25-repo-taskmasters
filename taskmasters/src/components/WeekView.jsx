@@ -83,9 +83,12 @@ export default function WeekView() {
           const [hours, minutes] = task.formatted_time.split(":");
           const minutesSinceMidnight =
             Number.parseInt(hours) * 60 + Number.parseInt(minutes);
-          // Create a date object with the correct date, ensuring timezone doesn't affect it
-          const [year, month, day] = task.task_date.split('-').map(Number);
-          const taskDate = new Date(year, month - 1, day); // month is 0-indexed in JS Date
+          
+          const taskDateStr = task.task_date;
+          
+          const [year, month, day] = taskDateStr.split('-').map(Number);
+          const taskDate = new Date(Date.UTC(year, month - 1, day));
+          taskDate.setMinutes(taskDate.getMinutes() + taskDate.getTimezoneOffset());
 
           return {
             id: task.task_id,
@@ -97,6 +100,7 @@ export default function WeekView() {
             endMinute:
               minutesSinceMidnight + Number.parseInt(task.task_duration),
             date: taskDate,
+            dateStr: taskDateStr
           };
         });
         setTasks(formattedTasks);
@@ -185,10 +189,7 @@ export default function WeekView() {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     
     return tasks.filter((task) => {
-      // Create a date string from task.date in YYYY-MM-DD format
-      const taskDateStr = `${task.date.getFullYear()}-${String(task.date.getMonth() + 1).padStart(2, '0')}-${String(task.date.getDate()).padStart(2, '0')}`;
-      
-      return dateStr === taskDateStr;
+      return task.dateStr === dateStr;
     });
   };
 
@@ -421,7 +422,7 @@ export default function WeekView() {
                         }}
                         onClick={() => {
                           setSelectedTaskId(task.id);
-                          setSelectedTaskDate(task.date.toISOString().split('T')[0]);
+                          setSelectedTaskDate(task.dateStr);
                         }}
                       >
                         <div className="font-medium text-xs md:text-sm truncate">
