@@ -29,7 +29,11 @@ export default function DayView() {
         throw new Error('User not logged in');
       }
 
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
       const response = await fetch(`${config.apiUrl}/tasks.php?date=${dateStr}&userId=${user.id}`);
       const data = await response.json();
 
@@ -45,7 +49,8 @@ export default function DayView() {
             priority: task.task_priority,
             duration: parseInt(task.task_duration),
             startMinute: minutesSinceMidnight,
-            endMinute: minutesSinceMidnight + parseInt(task.task_duration)
+            endMinute: minutesSinceMidnight + parseInt(task.task_duration),
+            dateStr: task.task_startDate || dateStr
           };
         });
         setTasks(formattedTasks);
@@ -294,7 +299,12 @@ export default function DayView() {
       {selectedTaskId && (
         <TaskDetailView 
           taskId={selectedTaskId} 
-          selectedDate={selectedDate.toISOString().split('T')[0]}
+          selectedDate={(() => {
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })()}
           onClose={() => setSelectedTaskId(null)} 
           onTaskUpdated={fetchTasks} 
         />
