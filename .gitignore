@@ -45,3 +45,4 @@ Thumbs.db
 *.bak
 *.tmp
 *.temp
+.DS_Store

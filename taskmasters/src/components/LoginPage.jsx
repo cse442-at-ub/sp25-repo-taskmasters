@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Settings } from "lucide-react";
 import config from '../config';
+import loginIllustration from "../assets/LoginIllustration.jpeg";
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -58,10 +59,8 @@ const LoginPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store user data in localStorage or context
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Redirect to dashboard or home page
-        window.location.href = '/dashboard';
+                window.location.href = '#/dashboard';
       } else {
         setError(data.message || 'Login failed');
       }
@@ -78,7 +77,6 @@ const LoginPage = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -95,7 +93,7 @@ const LoginPage = () => {
           {/* Left side with illustration */}
           <div className="hidden md:flex items-center justify-center">
             <img
-              src="https://via.placeholder.com/300"
+              src={loginIllustration}
               alt="Login illustration"
               className="w-[300px] h-[300px]"
             />
@@ -194,7 +192,7 @@ const LoginPage = () => {
                   </label>
                 </div>
                 <a 
-                  href="/forgot-password" 
+                  href="#/forgot-password" 
                   className="text-sm text-[#9706e9] hover:underline"
                 >
                   Forgot password?
@@ -214,7 +212,7 @@ const LoginPage = () => {
               <p className="text-gray-600">
                 Don't have an account?{' '}
                 <a
-                  href="/register"
+                            href="#/register"
                   className="text-[#9706e9] hover:underline"
                 >
                   Register here
