@@ -1,0 +1,43 @@
+# Configuration
+config/credentials.php
+
+# Composer
+/vendor/
+composer.phar
+composer.lock
+
+# PHP
+*.log
+error_log
+php_errors.log
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Cache and Logs
+/cache/
+/logs/
+*.cache
+
+# Database
+*.sql
+*.sqlite
+*.sqlite3
+/database/backups/
+
+# Except these SQL files
+!database/setup.sql
+!database/local_setup.sql
+
+# Config files that might contain sensitive info
+config/*.php
+!config/database.php
