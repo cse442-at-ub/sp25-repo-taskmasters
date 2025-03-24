@@ -714,20 +714,33 @@ function Dashboard() {
               <button
                 onClick={async () => {
                   try {
-                    // Mark task as completed
+                    console.log("Completing task:", taskToComplete);
+                    
+                    // Create a copy of the task with completed status
+                    const completedTaskCopy = { ...taskToComplete, completed: true };
+                    
+                    // Add to completed tasks immediately (optimistic update)
+                    setCompletedTasks(prevCompletedTasks => [...prevCompletedTasks, completedTaskCopy]);
+                    
+                    // Remove from active tasks immediately (optimistic update)
+                    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskToComplete.id));
+                    
+                    // Mark task as completed in the backend
                     await handleTaskCompletion(taskToComplete.id, true);
                     
-                    // Refresh dashboard data to ensure persistence
-                    const userData = JSON.parse(localStorage.getItem('user'));
-                    if (userData && userData.id) {
-                      await fetchDashboardData(userData.id);
-                    }
+                    console.log("Task completed and moved to completed tasks section");
                     
                     // Close modal
                     setConfirmationModalOpen(false);
                     setTaskToComplete(null);
                   } catch (error) {
                     console.error('Error completing task:', error);
+                    
+                    // If there was an error, refresh the dashboard data to ensure consistency
+                    const userData = JSON.parse(localStorage.getItem('user'));
+                    if (userData && userData.id) {
+                      await fetchDashboardData(userData.id);
+                    }
                   }
                 }}
                 className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
