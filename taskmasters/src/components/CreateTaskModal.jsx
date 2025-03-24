@@ -62,8 +62,15 @@ export default function CreateTaskForm({ onClose }) {
         throw new Error('User not logged in');
       }
 
-      const startTime = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTime = new Date(`2000/01/01 ${formData.endTime}`);
+      // If end date is not provided, use start date
+      const updatedFormData = { ...formData };
+      if (!updatedFormData.endDate && updatedFormData.startDate) {
+        updatedFormData.endDate = updatedFormData.startDate;
+        setFormData(updatedFormData);
+      }
+
+      const startTime = new Date(`2000/01/01 ${updatedFormData.startTime}`);
+      const endTime = new Date(`2000/01/01 ${updatedFormData.endTime}`);
       const duration = Math.round((endTime - startTime) / (1000 * 60));
 
       // If recurring is enabled but no days are selected, show an error

@@ -79,30 +79,49 @@ export default function WeekView() {
       const data = await response.json();
 
       if (response.ok) {
+        console.log('Raw tasks data from API:', data);
+        
         const formattedTasks = data.map((task) => {
-          const [hours, minutes] = task.formatted_time.split(":");
-          const minutesSinceMidnight =
-            Number.parseInt(hours) * 60 + Number.parseInt(minutes);
+          console.log('Processing task:', task);
           
-          const taskDateStr = task.task_date;
+          // Handle time formatting
+          let minutesSinceMidnight = 0;
+          if (task.formatted_time) {
+            const [hours, minutes] = task.formatted_time.split(":");
+            minutesSinceMidnight = Number.parseInt(hours) * 60 + Number.parseInt(minutes);
+          } else if (task.Task_time) {
+            const timeStr = new Date(task.Task_time).toTimeString().split(' ')[0];
+            const [hours, minutes] = timeStr.split(":");
+            minutesSinceMidnight = Number.parseInt(hours) * 60 + Number.parseInt(minutes);
+          }
           
-          const [year, month, day] = taskDateStr.split('-').map(Number);
-          const taskDate = new Date(Date.UTC(year, month - 1, day));
-          taskDate.setMinutes(taskDate.getMinutes() + taskDate.getTimezoneOffset());
+          // Handle date formatting
+          const taskDateStr = task.task_date || task.task_startDate;
+          console.log(`Task date string: ${taskDateStr}`);
+          
+          let taskDate;
+          if (taskDateStr) {
+            const [year, month, day] = taskDateStr.split('-').map(Number);
+            taskDate = new Date(Date.UTC(year, month - 1, day));
+            taskDate.setMinutes(taskDate.getMinutes() + taskDate.getTimezoneOffset());
+          } else {
+            taskDate = new Date(); // Default to today if no date
+          }
 
           return {
             id: task.task_id,
             title: task.task_Title,
-            category: task.task_tags,
-            priority: task.task_priority,
-            duration: Number.parseInt(task.task_duration),
+            category: task.task_tags || "Uncategorized",
+            priority: task.task_priority || "medium",
+            duration: Number.parseInt(task.task_duration) || 60,
             startMinute: minutesSinceMidnight,
-            endMinute:
-              minutesSinceMidnight + Number.parseInt(task.task_duration),
+            endMinute: minutesSinceMidnight + (Number.parseInt(task.task_duration) || 60),
             date: taskDate,
             dateStr: taskDateStr
           };
         });
+        
+        console.log('Formatted tasks:', formattedTasks);
         setTasks(formattedTasks);
       } else {
         throw new Error(data.message || "Failed to fetch tasks");
@@ -188,9 +207,25 @@ export default function WeekView() {
     // Create a date string in YYYY-MM-DD format for comparison
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     
-    return tasks.filter((task) => {
-      return task.dateStr === dateStr;
+    console.log(`Checking tasks for date: ${dateStr}`);
+    
+    const tasksForDay = tasks.filter((task) => {
+      // Get the task date from either dateStr or task_date property
+      const taskDate = task.dateStr || task.date;
+      
+      // Convert task date to YYYY-MM-DD format if it's a Date object
+      let formattedTaskDate = taskDate;
+      if (taskDate instanceof Date) {
+        formattedTaskDate = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
+      }
+      
+      const matches = formattedTaskDate === dateStr;
+      console.log(`Task ${task.id} (${task.title}) date: ${formattedTaskDate}, matches ${dateStr}: ${matches}`);
+      return matches;
     });
+    
+    console.log(`Found ${tasksForDay.length} tasks for ${dateStr}`);
+    return tasksForDay;
   };
 
   // Check if a date is today
