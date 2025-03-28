@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import config from '../config'
+import { post } from '../utils/api'
 
 export default function CreateTaskForm({ onClose }) {
   const [error, setError] = useState('');
@@ -86,20 +87,13 @@ export default function CreateTaskForm({ onClose }) {
           const startDate = new Date(formData.startDate);
           const endDate = new Date(formData.endDate);
           
-          // Create a task for the initial date
-          const initialResponse = await fetch(`${config.apiUrl}/tasks.php`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-              ...formData,
-              userId: user.id,
-              duration: duration,
-              recurring: 1,
-              recurringDays: selectedDays.join(',')
-            }),
+          // Create a task for the initial date using the secure API utility
+          const initialResponse = await post('tasks.php', {
+            ...formData,
+            userId: user.id,
+            duration: duration,
+            recurring: 1,
+            recurringDays: selectedDays.join(',')
           });
 
           if (!initialResponse.ok) {
@@ -117,20 +111,14 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-              await fetch(`${config.apiUrl}/tasks.php`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                  ...formData,
-                  userId: user.id,
-                  duration: duration,
-                  startDate: currentDate.toISOString().split('T')[0],
-                  recurring: 1,
-                  recurringDays: selectedDays.join(',')
-                }),
+              // Use the secure API utility for recurring tasks
+              await post('tasks.php', {
+                ...formData,
+                userId: user.id,
+                duration: duration,
+                startDate: currentDate.toISOString().split('T')[0],
+                recurring: 1,
+                recurringDays: selectedDays.join(',')
               });
             }
           }
@@ -141,19 +129,12 @@ export default function CreateTaskForm({ onClose }) {
         return;
       }
 
-      // For non-recurring tasks, create a single task
-      const response = await fetch(`${config.apiUrl}/tasks.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          userId: user.id,
-          duration: duration,
-          recurring: 0
-        }),
+      // For non-recurring tasks, create a single task using the secure API utility
+      const response = await post('tasks.php', {
+        ...formData,
+        userId: user.id,
+        duration: duration,
+        recurring: 0
       });
 
       const data = await response.json();

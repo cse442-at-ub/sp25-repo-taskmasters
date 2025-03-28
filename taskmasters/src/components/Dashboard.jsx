@@ -15,6 +15,7 @@ import {
 import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
 import config from "../config";
+import { get, post } from "../utils/api";
 
 function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -29,7 +30,12 @@ function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+  const [pointsModalOpen, setPointsModalOpen] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0);
   const [taskToComplete, setTaskToComplete] = useState(null);
+
+  // State for current date
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   // Get user data from localStorage
   useEffect(() => {
@@ -61,13 +67,51 @@ function Dashboard() {
       console.log(`Formatted today's date: ${today}`);
       console.log(`Fetching tasks for userId: ${userId}, date: ${today}`);
       
-      // Directly fetch tasks from tasks.php
-      console.log(`API URL: ${config.apiUrl}/tasks.php?date=${today}&userId=${userId}`);
-      const tasksResponse = await fetch(`${config.apiUrl}/tasks.php?date=${today}&userId=${userId}`);
+      // First fetch dashboard data for user level and achievements
+      console.log(`Fetching dashboard data for userId: ${userId}, date: ${today}`);
+      const dashboardResponse = await get('dashboard.php', { userId, date: today });
       
-      if (tasksResponse.ok) {
-        const tasksData = await tasksResponse.json();
-        console.log('Tasks from tasks.php:', tasksData);
+      if (dashboardResponse.ok) {
+        const dashboardData = await dashboardResponse.json();
+        console.log('Dashboard data:', dashboardData);
+        
+        // Update user level and achievements
+        if (dashboardData.level) {
+          setUserLevel(dashboardData.level);
+          console.log('Updated user level:', dashboardData.level);
+        }
+        
+        if (dashboardData.achievements) {
+          setAchievements(dashboardData.achievements);
+          console.log('Updated achievements:', dashboardData.achievements);
+        }
+        
+        // Process tasks from dashboard data
+        const dashboardTasks = dashboardData.tasks || [];
+        console.log('Tasks from dashboard.php:', dashboardTasks);
+        
+        // Also fetch tasks directly from tasks.php as a backup to ensure we get all tasks
+        console.log(`Also fetching tasks from tasks.php for date: ${today} and userId: ${userId}`);
+        const tasksResponse = await get('tasks.php', { date: today, userId });
+        
+        let tasksData = [];
+        if (tasksResponse.ok) {
+          const tasksFromApi = await tasksResponse.json();
+          console.log('Tasks from tasks.php:', tasksFromApi);
+          
+          // Combine tasks from both sources, prioritizing dashboard tasks
+          if (Array.isArray(tasksFromApi) && tasksFromApi.length > 0) {
+            // Use tasks from tasks.php if dashboard tasks are empty
+            tasksData = dashboardTasks.length > 0 ? dashboardTasks : tasksFromApi;
+          } else {
+            tasksData = dashboardTasks;
+          }
+        } else {
+          // If tasks.php fails, use dashboard tasks
+          tasksData = dashboardTasks;
+        }
+        
+        console.log('Combined tasks data:', tasksData);
         
         // Process tasks if we got them
         if (Array.isArray(tasksData) && tasksData.length > 0) {
@@ -169,9 +213,9 @@ function Dashboard() {
           setScheduleItems([]);
         }
       } else {
-        const errorText = await tasksResponse.text();
-        console.error('Tasks API error:', errorText);
-        throw new Error(`Failed to fetch tasks: ${errorText}`);
+        const errorText = await dashboardResponse.text();
+        console.error('Dashboard API error:', errorText);
+        throw new Error(`Failed to fetch dashboard data: ${errorText}`);
       }
       
     } catch (error) {
@@ -197,17 +241,12 @@ function Dashboard() {
         throw new Error('Task not found');
       }
       
-      const response = await fetch(`${config.apiUrl}/dashboard.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'completeTask',
-          taskId: taskId,
-          userId: userData.id,
-          completed: completed
-        })
+      // Use the secure API utility for POST requests
+      const response = await post('dashboard.php', {
+        action: 'completeTask',
+        taskId: taskId,
+        userId: userData.id,
+        completed: completed
       });
       
       if (!response.ok) {
@@ -219,32 +258,40 @@ function Dashboard() {
       const result = await response.json();
       console.log('Task completion result:', result);
       
-      if (completed) {
-        // Create a copy of the task with completed status
-        const completedTaskCopy = { ...taskToComplete, completed: true };
+      if (result.success) {
+        if (completed) {
+          // Create a copy of the task with completed status
+          const completedTaskCopy = { ...taskToComplete, completed: true };
+          
+          // Add to completed tasks
+          setCompletedTasks(prevCompletedTasks => [...prevCompletedTasks, completedTaskCopy]);
+          
+          // Remove from active tasks
+          setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+          
+          console.log(`Task ${taskId} moved to completed tasks`);
+          
+          // Show points modal if points were awarded
+          if (result.points && result.points > 0) {
+            setEarnedPoints(result.points);
+            setPointsModalOpen(true);
+          }
+        } else {
+          // If the task couldn't be uncompleted, show the message
+          alert(result.message);
+        }
         
-        // Add to completed tasks
-        setCompletedTasks(prevCompletedTasks => [...prevCompletedTasks, completedTaskCopy]);
+        // Update user level and achievements if provided in the response
+        if (result.level) {
+          setUserLevel(result.level);
+        }
         
-        // Remove from active tasks
-        setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-        
-        console.log(`Task ${taskId} moved to completed tasks`);
-      }
-      
-      // Update user level and achievements if provided in the response
-      if (result.level) {
-        setUserLevel(result.level);
-      }
-      
-      if (result.achievements) {
-        setAchievements(result.achievements);
-      }
-      
-      // Show points notification if points were awarded
-      if (completed && result.points) {
-        // You could add a toast notification here
-        console.log(`Earned ${result.points} points!`);
+        if (result.achievements) {
+          setAchievements(result.achievements);
+        }
+      } else {
+        // If the operation wasn't successful, show the error message
+        alert(result.message || 'Failed to update task completion status');
       }
       
     } catch (error) {
@@ -376,7 +423,30 @@ function Dashboard() {
 
       {/* Main Content */}
       <div className="flex-1 p-6 bg-white overflow-y-auto">
-        <h1 className="text-2xl font-bold mb-6">Hello, {username}!</h1>
+        {/* Header with date display */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Hello, {username}!</h1>
+            <h2 className="text-lg text-gray-600 font-medium">
+              {(() => {
+                const months = [
+                  "January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December",
+                ];
+                return `${months[currentDate.getMonth()]} ${currentDate.getDate()}, ${currentDate.getFullYear()}`;
+              })()}
+            </h2>
+          </div>
+          <div className="mt-3 md:mt-0">
+            <button 
+              onClick={handleAddTask}
+              className="bg-[#9706e9] text-white px-4 py-2 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md"
+            >
+              <PlusCircle size={18} />
+              <span>Add Task</span>
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Level & Achievements Card */}
@@ -408,12 +478,11 @@ function Dashboard() {
               Total Achievements: {achievements.total}
             </a>
 
-            <div className="w-20 h-20 rounded-full overflow-hidden">
-              <img
-                src="https://via.placeholder.com/80"
-                alt="User avatar"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#9706e9] to-[#e5cef2] shadow-md">
+              {/* Placeholder avatar with user's initial */}
+              <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                {username ? username.charAt(0).toUpperCase() : "U"}
+              </div>
             </div>
           </div>
 
@@ -437,11 +506,11 @@ function Dashboard() {
         </div>
 
         {/* Task Checklist */}
-        <div className="bg-[#d3d3d3] rounded p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium">Task Checklist</h2>
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-[#9706e9]">Task Checklist</h2>
             <button
-              className="bg-[#9706e9] text-white p-2 rounded-full hover:bg-[#8005cc] transition-all duration-200"
+              className="bg-[#9706e9] text-white p-3 rounded-full hover:bg-[#8005cc] transition-all duration-200 shadow-md"
               onClick={handleAddTask}
             >
               <PlusCircle size={20} />
@@ -449,7 +518,9 @@ function Dashboard() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-4">Loading tasks...</div>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#9706e9]"></div>
+            </div>
           ) : tasks.length > 0 ? (
             <>
               {/* Group tasks by category and render each category */}
@@ -463,46 +534,61 @@ function Dashboard() {
                   return acc;
                 }, {})
               ).map(([category, categoryTasks]) => (
-                <div key={category} className="mb-6">
-                  <h3 className="font-medium mb-2">{category}</h3>
-                  <div className="space-y-2">
+                <div key={category} className="mb-8">
+                  <h3 className="font-medium text-lg mb-3 text-gray-700 border-b pb-2">{category}</h3>
+                  <div className="space-y-3">
                     {categoryTasks.map((task, index) => (
                       <div
                         key={task.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-purple-100 p-2 rounded transition-colors duration-200"
-                        onClick={() => handleTaskClick(task.id)}
+                        className="bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
                       >
-                        <input
-                          type="checkbox"
-                          id={`task-${task.id}`}
-                          checked={task.completed}
-                          disabled={task.completed}
-                          className={`rounded border-gray-300 ${task.completed ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} text-[#9706e9] focus:ring-[#9706e9]`}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            if (!task.completed) { // Only allow completing tasks, not uncompleting
-                              // Open confirmation modal instead of completing immediately
-                              setTaskToComplete(task);
-                              setConfirmationModalOpen(true);
-                            }
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <label
-                          htmlFor={`task-${task.id}`}
-                          className={`text-sm flex-grow ${task.completed ? 'line-through text-gray-500' : ''}`}
-                        >
-                          {task.title}
-                        </label>
-                        {task.priority === 'high' && (
-                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">High</span>
-                        )}
-                        {task.priority === 'medium' && (
-                          <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">Medium</span>
-                        )}
-                        {task.priority === 'low' && (
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Low</span>
-                        )}
+                        <div className="flex items-center p-4">
+                          {/* Task details section - clickable to view details */}
+                          <div 
+                            className="flex-grow cursor-pointer"
+                            onClick={() => handleTaskClick(task.id)}
+                          >
+                            <div className="flex items-center">
+                              <span className="text-gray-800 font-medium">{task.title}</span>
+                              <span className="text-gray-500 text-sm ml-2">({task.time})</span>
+                            </div>
+                          </div>
+                          
+                          {/* Priority badge */}
+                          <div className="mx-3">
+                            {task.priority === 'high' && (
+                              <span className="bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-medium">High</span>
+                            )}
+                            {task.priority === 'medium' && (
+                              <span className="bg-yellow-100 text-yellow-800 text-xs px-3 py-1 rounded-full font-medium">Medium</span>
+                            )}
+                            {task.priority === 'low' && (
+                              <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">Low</span>
+                            )}
+                          </div>
+                          
+                          {/* Complete button */}
+                          <button
+                            onClick={() => {
+                              if (!task.completed) {
+                                setTaskToComplete(task);
+                                setConfirmationModalOpen(true);
+                              } else {
+                                alert("Tasks cannot be uncompleted once they are marked as complete.");
+                              }
+                            }}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
+                              task.completed
+                                ? 'bg-green-100 text-green-600 cursor-not-allowed'
+                                : 'bg-[#f0e6f8] text-[#9706e9] hover:bg-[#9706e9] hover:text-white cursor-pointer'
+                            }`}
+                            disabled={task.completed}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -510,20 +596,32 @@ function Dashboard() {
               ))}
             </>
           ) : (
-            <div className="text-gray-500 text-sm italic">
-              No tasks yet. Click the plus button to add a task.
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <div className="text-gray-500 mb-3">No tasks yet</div>
+              <button
+                onClick={handleAddTask}
+                className="inline-flex items-center px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
+              >
+                <PlusCircle size={18} className="mr-2" />
+                Add your first task
+              </button>
             </div>
           )}
         </div>
 
         {/* Completed Tasks Section */}
-        <div className="bg-[#e5f2e5] rounded p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium">Completed Tasks</h2>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-green-600">Completed Tasks</h2>
+            <div className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full">
+              {completedTasks.length} completed
+            </div>
           </div>
 
           {isLoading ? (
-            <div className="text-center py-4">Loading tasks...</div>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+            </div>
           ) : completedTasks.length > 0 ? (
             <>
               {/* Group completed tasks by category */}
@@ -537,37 +635,39 @@ function Dashboard() {
                   return acc;
                 }, {})
               ).map(([category, categoryTasks]) => (
-                <div key={category} className="mb-6">
-                  <h3 className="font-medium mb-2">{category}</h3>
-                  <div className="space-y-2">
+                <div key={category} className="mb-8">
+                  <h3 className="font-medium text-lg mb-3 text-gray-700 border-b pb-2">{category}</h3>
+                  <div className="space-y-3">
                     {categoryTasks.map((task, index) => (
                       <div
                         key={task.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-green-100 p-2 rounded transition-colors duration-200"
+                        className="bg-gray-50 border border-gray-100 rounded-lg overflow-hidden opacity-80"
                         onClick={() => handleTaskClick(task.id)}
                       >
-                        <input
-                          type="checkbox"
-                          id={`completed-task-${task.id}`}
-                          checked={true}
-                          disabled={true}
-                          className="rounded border-gray-300 opacity-60 cursor-not-allowed text-green-600 focus:ring-green-600"
-                        />
-                        <label
-                          htmlFor={`completed-task-${task.id}`}
-                          className="text-sm flex-grow line-through text-gray-500"
-                        >
-                          {task.title}
-                        </label>
-                        {task.priority === 'high' && (
-                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded opacity-60">High</span>
-                        )}
-                        {task.priority === 'medium' && (
-                          <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded opacity-60">Medium</span>
-                        )}
-                        {task.priority === 'low' && (
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded opacity-60">Low</span>
-                        )}
+                        <div className="flex items-center p-4 cursor-pointer">
+                          <div className="w-8 h-8 flex items-center justify-center rounded-full bg-green-100 text-green-600 mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div className="flex-grow">
+                            <div className="flex items-center">
+                              <span className="text-gray-500 font-medium line-through">{task.title}</span>
+                              <span className="text-gray-400 text-sm ml-2">({task.time})</span>
+                            </div>
+                          </div>
+                          <div>
+                            {task.priority === 'high' && (
+                              <span className="bg-red-50 text-red-400 text-xs px-3 py-1 rounded-full">High</span>
+                            )}
+                            {task.priority === 'medium' && (
+                              <span className="bg-yellow-50 text-yellow-400 text-xs px-3 py-1 rounded-full">Medium</span>
+                            )}
+                            {task.priority === 'low' && (
+                              <span className="bg-green-50 text-green-400 text-xs px-3 py-1 rounded-full">Low</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -575,8 +675,10 @@ function Dashboard() {
               ))}
             </>
           ) : (
-            <div className="text-gray-500 text-sm italic">
-              No completed tasks yet. Complete a task to see it here.
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <div className="text-gray-500">
+                No completed tasks yet. Complete a task to see it here.
+              </div>
             </div>
           )}
         </div>
@@ -680,6 +782,36 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Points Award Modal */}
+      {pointsModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full text-center">
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setPointsModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="py-6">
+              <Trophy className="w-16 h-16 text-[#9706e9] mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-[#9706e9] mb-2">Congratulations!</h2>
+              <p className="text-lg mb-4">You earned <span className="font-bold text-[#9706e9]">{earnedPoints} points</span>!</p>
+              <p className="text-gray-600">Keep up the good work to level up and unlock achievements!</p>
+            </div>
+            
+            <button
+              onClick={() => setPointsModalOpen(false)}
+              className="w-full bg-[#9706e9] text-white py-2 rounded-lg hover:bg-[#8005cc] transition-all duration-200"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Task Completion Confirmation Modal */}
       {confirmationModalOpen && taskToComplete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -714,33 +846,20 @@ function Dashboard() {
               <button
                 onClick={async () => {
                   try {
-                    console.log("Completing task:", taskToComplete);
-                    
-                    // Create a copy of the task with completed status
-                    const completedTaskCopy = { ...taskToComplete, completed: true };
-                    
-                    // Add to completed tasks immediately (optimistic update)
-                    setCompletedTasks(prevCompletedTasks => [...prevCompletedTasks, completedTaskCopy]);
-                    
-                    // Remove from active tasks immediately (optimistic update)
-                    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskToComplete.id));
-                    
-                    // Mark task as completed in the backend
+                    // Mark task as completed
                     await handleTaskCompletion(taskToComplete.id, true);
                     
-                    console.log("Task completed and moved to completed tasks section");
+                    // Refresh dashboard data to ensure persistence
+                    const userData = JSON.parse(localStorage.getItem('user'));
+                    if (userData && userData.id) {
+                      await fetchDashboardData(userData.id);
+                    }
                     
                     // Close modal
                     setConfirmationModalOpen(false);
                     setTaskToComplete(null);
                   } catch (error) {
                     console.error('Error completing task:', error);
-                    
-                    // If there was an error, refresh the dashboard data to ensure consistency
-                    const userData = JSON.parse(localStorage.getItem('user'));
-                    if (userData && userData.id) {
-                      await fetchDashboardData(userData.id);
-                    }
                   }
                 }}
                 className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
