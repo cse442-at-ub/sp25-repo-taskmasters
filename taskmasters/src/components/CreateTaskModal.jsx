@@ -170,6 +170,11 @@ export default function CreateTaskForm({ onClose }) {
     setIsLoading(true);
     
     try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user) {
+        throw new Error('User not logged in');
+      }
+
       const date = new Date(formData.startDate);
       const freeSlot = await findFreeTimeSlot(date, taskDuration);
       
@@ -179,16 +184,90 @@ export default function CreateTaskForm({ onClose }) {
         return;
       }
       
-      // Update form data with the found free slot
-      setFormData(prev => ({
-        ...prev,
+      // Create a new task object with the found time slot
+      const updatedFormData = { 
+        ...formData,
         startTime: freeSlot.startTime,
-        endTime: freeSlot.endTime
-      }));
+        endTime: freeSlot.endTime 
+      };
+      
+      // If end date is not provided, use start date
+      if (!updatedFormData.endDate && updatedFormData.startDate) {
+        updatedFormData.endDate = updatedFormData.startDate;
+      }
+
+      const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
+      const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
+      const duration = Math.round((endTime - startTime) / (1000 * 60));
+
+      // For recurring tasks, create a task for each selected day
+      if (isRecurring && selectedDays.length > 0) {
+        // Create a task for each selected day
+        const createRecurringTasks = async () => {
+          const startDate = new Date(updatedFormData.startDate);
+          const endDate = new Date(updatedFormData.endDate);
+          
+          // Create a task for the initial date using the secure API utility
+          const initialResponse = await post('tasks.php', {
+            ...updatedFormData,
+            userId: user.id,
+            duration: duration,
+            recurring: 1,
+            recurringDays: selectedDays.join(',')
+          });
+
+          if (!initialResponse.ok) {
+            throw new Error('Failed to create initial task');
+          }
+
+          // Calculate the date range for recurring tasks
+          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          
+          // Create tasks for each selected day within the date range
+          for (let i = 1; i <= daysDiff; i++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + i);
+            
+            // Check if the current day of the week is in the selected days
+            const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
+              // Use the secure API utility for recurring tasks
+              await post('tasks.php', {
+                ...updatedFormData,
+                userId: user.id,
+                duration: duration,
+                startDate: currentDate.toISOString().split('T')[0],
+                recurring: 1,
+                recurringDays: selectedDays.join(',')
+              });
+            }
+          }
+        };
+
+        await createRecurringTasks();
+        onClose();
+        return;
+      }
+
+      // For non-recurring tasks, create a single task using the secure API utility
+      const response = await post('tasks.php', {
+        ...updatedFormData,
+        userId: user.id,
+        duration: duration,
+        recurring: 0
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to create task');
+      }
+      
+      // Close the modal after successful task creation
+      onClose();
+      
     } catch (error) {
       console.error('Error auto-applying task:', error);
       setError(error.message || 'Failed to auto-apply task');
-    } finally {
       setIsLoading(false);
     }
   };
