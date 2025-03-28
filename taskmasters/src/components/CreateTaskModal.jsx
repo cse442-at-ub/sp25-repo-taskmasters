@@ -9,6 +9,9 @@ export default function CreateTaskForm({ onClose }) {
   const [error, setError] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [selectedDays, setSelectedDays] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDurationModalOpen, setIsDurationModalOpen] = useState(false);
+  const [taskDuration, setTaskDuration] = useState(60); // Default 60 minutes
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -53,9 +56,147 @@ export default function CreateTaskForm({ onClose }) {
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const navigate = useNavigate()
-  const handleSubmit = async (e, autoApply = false) => {
+  // Function to find free time slots in the calendar
+  const findFreeTimeSlot = async (date, duration) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user) {
+        throw new Error('User not logged in');
+      }
+
+      // Format date for API request
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Fetch tasks for the selected date
+      const response = await fetch(`${config.apiUrl}/tasks.php?date=${dateStr}&userId=${user.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tasks');
+      }
+      
+      const tasks = await response.json();
+      
+      // Convert tasks to time slots (start and end minutes since midnight)
+      const busySlots = tasks.map(task => {
+        let startMinute = 0;
+        if (task.formatted_time) {
+          const [hours, minutes] = task.formatted_time.split(':');
+          startMinute = parseInt(hours) * 60 + parseInt(minutes);
+        } else if (task.Task_time) {
+          const timeObj = new Date(task.Task_time);
+          startMinute = timeObj.getHours() * 60 + timeObj.getMinutes();
+        }
+        
+        const taskDuration = parseInt(task.task_duration) || 60;
+        const endMinute = startMinute + taskDuration;
+        
+        return { start: startMinute, end: endMinute };
+      });
+      
+      // Sort busy slots by start time
+      busySlots.sort((a, b) => a.start - b.start);
+      
+      // Define working hours (9am to 12am)
+      const dayStart = 9 * 60; // 9am in minutes
+      const dayEnd = 24 * 60; // 12am in minutes
+      
+      // Find free slots
+      const freeSlots = [];
+      let currentTime = dayStart;
+      
+      for (const slot of busySlots) {
+        if (slot.start > currentTime) {
+          freeSlots.push({ start: currentTime, end: slot.start });
+        }
+        currentTime = Math.max(currentTime, slot.end);
+      }
+      
+      // Add the last free slot if there's time left in the day
+      if (currentTime < dayEnd) {
+        freeSlots.push({ start: currentTime, end: dayEnd });
+      }
+      
+      // Filter out slots that are too small (less than the specified duration)
+      const viableSlots = freeSlots.filter(slot => (slot.end - slot.start) >= duration);
+      
+      if (viableSlots.length === 0) {
+        return null; // No suitable free slots found
+      }
+      
+      // Find the middle of the largest free slot
+      const largestSlot = viableSlots.reduce(
+        (max, slot) => (slot.end - slot.start > max.end - max.start) ? slot : max, 
+        viableSlots[0]
+      );
+      
+      // Calculate the middle time
+      const middleMinute = Math.floor(largestSlot.start + (largestSlot.end - largestSlot.start - duration) / 2);
+      
+      // Convert to hours and minutes
+      const hours = Math.floor(middleMinute / 60);
+      const minutes = middleMinute % 60;
+      
+      // Format as HH:MM
+      const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      
+      // Calculate end time
+      const endMinute = middleMinute + duration;
+      const endHours = Math.floor(endMinute / 60);
+      const endMinutes = endMinute % 60;
+      const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+      
+      return { startTime: startTimeStr, endTime: endTimeStr };
+    } catch (error) {
+      console.error('Error finding free time slot:', error);
+      return null;
+    }
+  };
+
+  // Handle opening the duration selection modal
+  const handleAutoApplyClick = (e) => {
     e.preventDefault();
+    
+    // Check if start date is provided
+    if (!formData.startDate) {
+      setError('Please select a start date before using Auto Apply');
+      return;
+    }
+    
+    setIsDurationModalOpen(true);
+  };
+
+  // Handle duration selection and proceed with auto apply
+  const handleDurationSelect = async () => {
+    setIsDurationModalOpen(false);
+    setIsLoading(true);
+    
+    try {
+      const date = new Date(formData.startDate);
+      const freeSlot = await findFreeTimeSlot(date, taskDuration);
+      
+      if (!freeSlot) {
+        setError('No suitable free time slots found for this date. Please try another date or set the time manually.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update form data with the found free slot
+      setFormData(prev => ({
+        ...prev,
+        startTime: freeSlot.startTime,
+        endTime: freeSlot.endTime
+      }));
+    } catch (error) {
+      console.error('Error auto-applying task:', error);
+      setError(error.message || 'Failed to auto-apply task');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const navigate = useNavigate()
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
     
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -77,6 +218,7 @@ export default function CreateTaskForm({ onClose }) {
       // If recurring is enabled but no days are selected, show an error
       if (isRecurring && selectedDays.length === 0) {
         setError('Please select at least one day for recurring tasks');
+        setIsLoading(false);
         return;
       }
 
@@ -131,7 +273,7 @@ export default function CreateTaskForm({ onClose }) {
 
       // For non-recurring tasks, create a single task using the secure API utility
       const response = await post('tasks.php', {
-        ...formData,
+        ...updatedFormData,
         userId: user.id,
         duration: duration,
         recurring: 0
@@ -147,6 +289,8 @@ export default function CreateTaskForm({ onClose }) {
     } catch (error) {
       console.error('Error creating task:', error);
       setError(error.message || 'Failed to create task');
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -164,7 +308,7 @@ export default function CreateTaskForm({ onClose }) {
           </div>
         )}
 
-        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="taskName" className="block text-sm font-medium text-gray-700 mb-1">
               Task Name
@@ -330,20 +474,31 @@ export default function CreateTaskForm({ onClose }) {
           <div className="flex gap-4 justify-start">
             <button
               type="button"
-              onClick={(e) => handleSubmit(e, true)}
-              className="px-6 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200"
+              onClick={handleAutoApplyClick}
+              disabled={isLoading || formData.startTime !== ""}
+              className={`px-6 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200 ${
+                formData.startTime !== "" 
+                  ? "bg-gray-400 text-white cursor-not-allowed" 
+                  : "bg-[#9706e9] text-white hover:bg-[#8005cc]"
+              }`}
             >
-              Auto Apply
+              {isLoading ? 'Loading...' : 'Auto Apply'}
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200"
+              disabled={isLoading || formData.startTime === ""}
+              className={`px-6 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200 ${
+                formData.startTime === "" 
+                  ? "bg-gray-400 text-white cursor-not-allowed" 
+                  : "bg-[#9706e9] text-white hover:bg-[#8005cc]"
+              }`}
             >
-              Apply
+              {isLoading ? 'Loading...' : 'Apply'}
             </button>
             <button
               type="button"
               onClick={handleCancel}
+              disabled={isLoading}
               className="px-6 py-2 border border-[#9706e9] text-[#9706e9] rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200"
             >
               Cancel
@@ -351,6 +506,94 @@ export default function CreateTaskForm({ onClose }) {
           </div>
         </form>
       </div>
+      
+      {/* Duration Selection Modal */}
+      {isDurationModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-6">
+            <h2 className="text-xl font-semibold text-center mb-4">Select Task Duration</h2>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                How long should this task be?
+              </label>
+              
+              <div className="flex flex-col space-y-4">
+                {/* Duration slider */}
+                <div className="w-full">
+                  <input
+                    type="range"
+                    min="15"
+                    max="240"
+                    step="15"
+                    value={taskDuration}
+                    onChange={(e) => setTaskDuration(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#9706e9]"
+                  />
+                  
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>15m</span>
+                    <span>1h</span>
+                    <span>2h</span>
+                    <span>3h</span>
+                    <span>4h</span>
+                  </div>
+                </div>
+                
+                {/* Duration display */}
+                <div className="text-center text-2xl font-bold text-[#9706e9]">
+                  {taskDuration < 60 
+                    ? `${taskDuration} minutes` 
+                    : taskDuration % 60 === 0 
+                      ? `${taskDuration / 60} hour${taskDuration > 60 ? 's' : ''}` 
+                      : `${Math.floor(taskDuration / 60)}h ${taskDuration % 60}m`
+                  }
+                </div>
+                
+                {/* Quick selection buttons */}
+                <div className="flex flex-wrap gap-2 justify-center mt-2">
+                  {[30, 45, 60, 90, 120].map(duration => (
+                    <button
+                      key={duration}
+                      type="button"
+                      onClick={() => setTaskDuration(duration)}
+                      className={`px-3 py-1 rounded-full text-sm ${
+                        taskDuration === duration 
+                          ? 'bg-[#9706e9] text-white' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {duration < 60 
+                        ? `${duration}m` 
+                        : duration % 60 === 0 
+                          ? `${duration / 60}h` 
+                          : `${Math.floor(duration / 60)}h ${duration % 60}m`
+                      }
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setIsDurationModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDurationSelect}
+                className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc]"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
