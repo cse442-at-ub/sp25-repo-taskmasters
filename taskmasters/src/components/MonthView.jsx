@@ -5,6 +5,7 @@ import TaskDetailsModal from "./TaskDetailsModal"
 import CreateTaskForm from "./CreateTaskModal"
 import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle } from "lucide-react"
 import config from "../config"
+import { useNavigate } from "react-router-dom"
 
 export default function MonthView() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -14,6 +15,7 @@ export default function MonthView() {
   const [error, setError] = useState("")
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [viewMode, setViewMode] = useState("Month")
+  const navigate = useNavigate()
 
   // Get the first day of the month
   const getFirstDayOfMonth = (date) => {
@@ -305,15 +307,15 @@ export default function MonthView() {
           <nav className="flex-1 p-4">
             <div className="space-y-2">
               <a
-                href="#/dashboard"
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200 cursor-pointer"
               >
                 <LayoutDashboard size={20} />
                 <span className="text-lg">Dashboard</span>
               </a>
               <a
-                href="#/calendar"
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                onClick={() => navigate('/calendar')}
+                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200 cursor-pointer"
               >
                 <Calendar size={20} />
                 <span className="text-lg">Calendar</span>
@@ -386,7 +388,7 @@ export default function MonthView() {
           {/* View Toggle */}
           <div className="flex mb-8">
             <button
-              onClick={() => setViewMode("Day")}
+              onClick={() => navigate('/calendar')}
               className={`px-4 py-2 rounded-l font-semibold ${
                 viewMode === "Day" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
               }`}
@@ -394,7 +396,7 @@ export default function MonthView() {
               Day
             </button>
             <button
-              onClick={() => setViewMode("Week")}
+              onClick={() => navigate('/week-view')}
               className={`px-4 py-2 border-l border-r border-purple-800 font-semibold ${
                 viewMode === "Week" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
               }`}
@@ -402,7 +404,7 @@ export default function MonthView() {
               Week
             </button>
             <button
-              onClick={() => setViewMode("Month")}
+              onClick={() => navigate('/month-view')}
               className={`px-4 py-2 rounded-r font-semibold ${
                 viewMode === "Month" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
               }`}

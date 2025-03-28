@@ -19,7 +19,6 @@ function App() {
         <Route path="/month-view" element={<MonthView />} />
         <Route path="/avatar" element={<div>Avatar Customization Coming Soon</div>} />
         <Route path="/achievements" element={<div>Achievements Coming Soon</div>} />
-        <Route path="/create-task" element={<div>Create Task Coming Soon</div>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
