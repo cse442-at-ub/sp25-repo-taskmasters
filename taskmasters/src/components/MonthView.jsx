@@ -94,8 +94,9 @@ export default function MonthView() {
       const endDate = new Date(lastDay)
       endDate.setDate(endDate.getDate() + 7) // One week after last day
 
-      const startDateStr = startDate.toISOString().split("T")[0]
-      const endDateStr = endDate.toISOString().split("T")[0]
+      // Format dates properly accounting for timezone
+      const startDateStr = startDate.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD
+      const endDateStr = endDate.toLocaleDateString('en-CA');
 
       // Fetch tasks for the entire month view
       const response = await fetch(
@@ -105,22 +106,26 @@ export default function MonthView() {
 
       if (response.ok) {
         const formattedTasks = data.map((task) => {
-          const [hours, minutes] = task.formatted_time.split(":")
-          const minutesSinceMidnight = Number.parseInt(hours) * 60 + Number.parseInt(minutes)
-          const taskDate = new Date(task.task_date)
+          // Parse time properly using 24-hour format
+          const [hours, minutes] = task.formatted_time.split(":");
+          const minutesSinceMidnight = parseInt(hours) * 60 + parseInt(minutes);
+          
+          // Parse the task date properly
+          const [year, month, day] = task.task_date.split('-').map(Number);
+          const taskDate = new Date(year, month - 1, day);
 
           return {
             id: task.task_id,
             title: task.task_Title,
             category: task.task_tags,
             priority: task.task_priority,
-            duration: Number.parseInt(task.task_duration),
+            duration: parseInt(task.task_duration),
             startMinute: minutesSinceMidnight,
-            endMinute: minutesSinceMidnight + Number.parseInt(task.task_duration),
+            endMinute: minutesSinceMidnight + parseInt(task.task_duration),
             date: taskDate,
             description: task.task_description || "",
-            time: task.formatted_time,
-          }
+            time: task.formatted_time
+          };
         })
         setTasks(formattedTasks)
       } else {
@@ -205,8 +210,11 @@ export default function MonthView() {
   }
 
   const handleTaskClick = (task) => {
-    setSelectedTask(task)
-    setIsTaskDetailsModalOpen(true)
+    setSelectedTask({
+      id: task.id,
+      date: task.date.toLocaleDateString('en-CA')
+    });
+    setIsTaskDetailsModalOpen(true);
   }
 
   const handleEditTask = async (updatedTask) => {
@@ -389,25 +397,19 @@ export default function MonthView() {
           <div className="flex mb-8">
             <button
               onClick={() => navigate('/calendar')}
-              className={`px-4 py-2 rounded-l font-semibold ${
-                viewMode === "Day" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
-              }`}
+              className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-l font-semibold hover:bg-[#9706e9]"
             >
               Day
             </button>
             <button
               onClick={() => navigate('/week-view')}
-              className={`px-4 py-2 border-l border-r border-purple-800 font-semibold ${
-                viewMode === "Week" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
-              }`}
+              className="bg-[#9706e9]/70 text-white px-4 py-2 border-l border-r border-purple-800 font-semibold hover:bg-[#9706e9]"
             >
               Week
             </button>
             <button
               onClick={() => navigate('/month-view')}
-              className={`px-4 py-2 rounded-r font-semibold ${
-                viewMode === "Month" ? "bg-[#9706e9] text-white" : "bg-[#9706e9]/70 text-white hover:bg-[#9706e9]"
-              }`}
+              className="bg-[#9706e9] text-white px-4 py-2 rounded-r font-semibold"
             >
               Month
             </button>
@@ -477,10 +479,13 @@ export default function MonthView() {
       {/* Task Details Modal */}
       {isTaskDetailsModalOpen && selectedTask && (
         <TaskDetailsModal
-          task={selectedTask}
+          taskId={selectedTask.id}
+          selectedDate={selectedTask.date}
           onClose={() => setIsTaskDetailsModalOpen(false)}
-          onEdit={handleEditTask}
-          onDelete={handleDeleteTask}
+          onTaskUpdated={() => {
+            setIsTaskDetailsModalOpen(false);
+            fetchTasks();
+          }}
         />
       )}
     </React.Fragment>
