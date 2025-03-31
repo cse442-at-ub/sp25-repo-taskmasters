@@ -1,7 +1,5 @@
 <?php
-
 session_start();
-
 
 header("Access-Control-Allow-Origin: " . (isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*'));
 header("Content-Type: application/json; charset=UTF-8");
@@ -12,17 +10,14 @@ header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: DENY");
 header("X-XSS-Protection: 1; mode=block");
 header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
-// Less restrictive CSP for development
 header("Content-Security-Policy: default-src * 'unsafe-inline' 'unsafe-eval'; img-src * data:;");
 
-// Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
 include_once '../config/database.php';
-
 
 function sanitizeInput($data) {
     if (is_string($data)) {
@@ -33,7 +28,6 @@ function sanitizeInput($data) {
     return $data;
 }
 
-
 function verifyCsrfToken($token) {
     if (empty($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
         return false;
@@ -42,29 +36,24 @@ function verifyCsrfToken($token) {
 }
 
 try {
-    // Temporarily disable CSRF verification for testing
-    // We'll log the headers to debug the issue
     if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
         $headers = getallheaders();
         $csrfToken = isset($headers['X-CSRF-Token']) ? $headers['X-CSRF-Token'] : null;
         
-        // Log headers for debugging
         error_log("Request headers: " . json_encode($headers));
         error_log("CSRF Token from header: " . ($csrfToken ?? 'null'));
         error_log("CSRF Token from session: " . ($_SESSION['csrf_token'] ?? 'null'));
         
-        // Temporarily skip CSRF verification
-        // if (!$csrfToken || !verifyCsrfToken($csrfToken)) {
-        //     http_response_code(403);
-        //     echo json_encode(array("message" => "Invalid or missing CSRF token"));
-        //     exit;
-        // }
+        if (!$csrfToken || !verifyCsrfToken($csrfToken)) {
+            http_response_code(403);
+            echo json_encode(array("message" => "Invalid or missing CSRF token"));
+            exit;
+        }
     }
     
     $database = new Database();
     $db = $database->getConnection();
 
-    
     ensureAvatarTablesExist($db);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -74,7 +63,6 @@ try {
             throw new Exception("User ID is required");
         }
 
-      
         $userData = getUserAvatarData($db, $userId);
         
         http_response_code(200);
@@ -125,7 +113,6 @@ try {
     ));
 }
 
-
 function ensureAvatarTablesExist($db) {
     try {
         $query = "SHOW TABLES LIKE 'avatars'";
@@ -175,7 +162,6 @@ function ensureAvatarTablesExist($db) {
         $userAvatarsTableExists = $stmt->rowCount() > 0;
         
         if (!$userAvatarsTableExists) {
-
             $query = "CREATE TABLE user_avatars (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
@@ -186,19 +172,16 @@ function ensureAvatarTablesExist($db) {
             )";
             $db->exec($query);
             
-    
             $query = "SELECT user_id FROM users";
             $stmt = $db->prepare($query);
             $stmt->execute();
             $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
- 
             $query = "SELECT avatar_id FROM avatars WHERE is_default = 1 LIMIT 1";
             $stmt = $db->prepare($query);
             $stmt->execute();
             $defaultAvatar = $stmt->fetch(PDO::FETCH_ASSOC);
             $defaultAvatarId = $defaultAvatar ? $defaultAvatar['avatar_id'] : 1;
-            
             
             foreach ($users as $user) {
                 $query = "INSERT INTO user_avatars (user_id, avatar_id, is_current) VALUES (:user_id, :avatar_id, 1)";
@@ -216,10 +199,8 @@ function ensureAvatarTablesExist($db) {
     }
 }
 
-
 function getUserAvatarData($db, $userId) {
     try {
- 
         $query = "SELECT a.avatar_id, a.name, a.image_url 
                  FROM user_avatars ua 
                  JOIN avatars a ON ua.avatar_id = a.avatar_id 
@@ -229,16 +210,13 @@ function getUserAvatarData($db, $userId) {
         $stmt->execute();
         $currentAvatar = $stmt->fetch(PDO::FETCH_ASSOC);
         
-       
         if (!$currentAvatar) {
-           
             $query = "SELECT avatar_id, name, image_url FROM avatars WHERE is_default = 1 LIMIT 1";
             $stmt = $db->prepare($query);
             $stmt->execute();
             $defaultAvatar = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($defaultAvatar) {
-                
                 $query = "INSERT INTO user_avatars (user_id, avatar_id, is_current) VALUES (:userId, :avatarId, 1)";
                 $stmt = $db->prepare($query);
                 $stmt->bindParam(':userId', $userId);
@@ -249,7 +227,6 @@ function getUserAvatarData($db, $userId) {
             }
         }
         
-        
         $query = "SELECT a.avatar_id, a.name, a.image_url, a.cost, ua.is_current 
                  FROM user_avatars ua 
                  JOIN avatars a ON ua.avatar_id = a.avatar_id 
@@ -259,13 +236,11 @@ function getUserAvatarData($db, $userId) {
         $stmt->execute();
         $ownedAvatars = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        
         $query = "SELECT avatar_id, name, image_url, cost FROM avatars ORDER BY cost ASC";
         $stmt = $db->prepare($query);
         $stmt->execute();
         $allAvatars = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-       
         $availableAvatars = [];
         foreach ($allAvatars as $avatar) {
             $isOwned = false;
@@ -279,7 +254,6 @@ function getUserAvatarData($db, $userId) {
             $avatar['is_owned'] = $isOwned;
             $availableAvatars[] = $avatar;
         }
-        
         
         $query = "SELECT level, total_points FROM user_points WHERE user_id = :userId";
         $stmt = $db->prepare($query);
@@ -307,13 +281,10 @@ function getUserAvatarData($db, $userId) {
     }
 }
 
-
 function purchaseAvatar($db, $userId, $avatarId) {
     try {
- 
         $db->beginTransaction();
         
-       
         $query = "SELECT * FROM user_avatars WHERE user_id = :userId AND avatar_id = :avatarId";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
@@ -321,14 +292,12 @@ function purchaseAvatar($db, $userId, $avatarId) {
         $stmt->execute();
         
         if ($stmt->rowCount() > 0) {
-            
             $db->rollBack();
             return [
                 'success' => false,
                 'message' => 'You already own this avatar'
             ];
         }
-        
         
         $query = "SELECT * FROM avatars WHERE avatar_id = :avatarId";
         $stmt = $db->prepare($query);
@@ -344,7 +313,6 @@ function purchaseAvatar($db, $userId, $avatarId) {
             ];
         }
         
- 
         $query = "SELECT total_points FROM user_points WHERE user_id = :userId";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
@@ -359,7 +327,6 @@ function purchaseAvatar($db, $userId, $avatarId) {
             ];
         }
         
- 
         if ($userPoints['total_points'] < $avatar['cost']) {
             $db->rollBack();
             return [
@@ -368,7 +335,6 @@ function purchaseAvatar($db, $userId, $avatarId) {
             ];
         }
         
-
         $newPoints = $userPoints['total_points'] - $avatar['cost'];
         $query = "UPDATE user_points SET total_points = :points WHERE user_id = :userId";
         $stmt = $db->prepare($query);
@@ -376,16 +342,13 @@ function purchaseAvatar($db, $userId, $avatarId) {
         $stmt->bindParam(':userId', $userId);
         $stmt->execute();
         
-      
         $query = "INSERT INTO user_avatars (user_id, avatar_id, is_current) VALUES (:userId, :avatarId, 0)";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
         $stmt->bindParam(':avatarId', $avatarId);
         $stmt->execute();
         
-   
         $db->commit();
-        
         
         $userData = getUserAvatarData($db, $userId);
         
@@ -401,10 +364,8 @@ function purchaseAvatar($db, $userId, $avatarId) {
     }
 }
 
-
 function selectAvatar($db, $userId, $avatarId) {
     try {
-      
         $query = "SELECT * FROM user_avatars WHERE user_id = :userId AND avatar_id = :avatarId";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
@@ -418,20 +379,17 @@ function selectAvatar($db, $userId, $avatarId) {
             ];
         }
         
-      
         $query = "UPDATE user_avatars SET is_current = 0 WHERE user_id = :userId";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
         $stmt->execute();
         
-    
         $query = "UPDATE user_avatars SET is_current = 1 WHERE user_id = :userId AND avatar_id = :avatarId";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
         $stmt->bindParam(':avatarId', $avatarId);
         $stmt->execute();
         
- 
         $userData = getUserAvatarData($db, $userId);
         
         return [
