@@ -69,10 +69,10 @@ export default function WeekView() {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const startDateStr = startOfWeek.toISOString().split("T")[0];
-      const endDateStr = endOfWeek.toISOString().split("T")[0];
+      // Format dates properly
+      const startDateStr = `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`;
+      const endDateStr = `${endOfWeek.getFullYear()}-${String(endOfWeek.getMonth() + 1).padStart(2, '0')}-${String(endOfWeek.getDate()).padStart(2, '0')}`;
 
-      // Fetch tasks for the entire week
       const response = await fetch(
         `${config.apiUrl}/tasks.php?startDate=${startDateStr}&endDate=${endDateStr}&userId=${user.id}`
       );
@@ -80,27 +80,34 @@ export default function WeekView() {
 
       if (response.ok) {
         const formattedTasks = data.map((task) => {
-          const [hours, minutes] = task.formatted_time.split(":");
-          const minutesSinceMidnight =
-            Number.parseInt(hours) * 60 + Number.parseInt(minutes);
+          // Parse time in 12-hour format
+          const [time, period] = task.formatted_time.split(' '); // Split "10:10 AM" into ["10:10", "AM"]
+          let [hours, minutes] = time.split(':').map(Number);
           
-          const taskDateStr = task.task_date;
+          // Convert to 24-hour format
+          if (period === 'PM' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'AM' && hours === 12) {
+            hours = 0;
+          }
           
-          const [year, month, day] = taskDateStr.split('-').map(Number);
-          const taskDate = new Date(Date.UTC(year, month - 1, day));
-          taskDate.setMinutes(taskDate.getMinutes() + taskDate.getTimezoneOffset());
+          const minutesSinceMidnight = hours * 60 + minutes;
+          
+          // Parse the task date properly
+          const [year, month, day] = task.task_date.split('-').map(Number);
+          const taskDate = new Date(year, month - 1, day);
 
           return {
             id: task.task_id,
             title: task.task_Title,
             category: task.task_tags,
             priority: task.task_priority,
-            duration: Number.parseInt(task.task_duration),
+            duration: parseInt(task.task_duration),
             startMinute: minutesSinceMidnight,
-            endMinute:
-              minutesSinceMidnight + Number.parseInt(task.task_duration),
+            endMinute: minutesSinceMidnight + parseInt(task.task_duration),
             date: taskDate,
-            dateStr: taskDateStr
+            dateStr: task.task_date,
+            time: task.formatted_time
           };
         });
         setTasks(formattedTasks);
@@ -185,12 +192,8 @@ export default function WeekView() {
 
   // Get tasks for a specific day
   const getTasksForDay = (date) => {
-    // Create a date string in YYYY-MM-DD format for comparison
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    
-    return tasks.filter((task) => {
-      return task.dateStr === dateStr;
-    });
+    return tasks.filter((task) => task.dateStr === dateStr);
   };
 
   // Check if a date is today
@@ -415,8 +418,8 @@ export default function WeekView() {
                                    transition-all duration-200 cursor-pointer
                                    absolute z-10 mx-2 overflow-hidden`}
                         style={{
-                          top: `${startHour * 60 + (startMinuteInHour / 60) * 60}px`,
-                          height: `${Math.max(durationHours * 60, 30)}px`,
+                          top: `${(task.startMinute / 60) * 80}px`, // Assuming each hour is 80px high
+                          height: `${Math.max((task.duration / 60) * 80, 30)}px`,
                           left: `calc(${(columnStart - 1) / 8} * 100%)`,
                           width: `calc(100% / 8 - 16px)`,
                         }}
