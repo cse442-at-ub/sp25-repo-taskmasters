@@ -69,59 +69,47 @@ export default function WeekView() {
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const startDateStr = startOfWeek.toISOString().split("T")[0];
-      const endDateStr = endOfWeek.toISOString().split("T")[0];
+      // Format dates properly
+      const startDateStr = `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`;
+      const endDateStr = `${endOfWeek.getFullYear()}-${String(endOfWeek.getMonth() + 1).padStart(2, '0')}-${String(endOfWeek.getDate()).padStart(2, '0')}`;
 
-      // Fetch tasks for the entire week
       const response = await fetch(
         `${config.apiUrl}/tasks.php?startDate=${startDateStr}&endDate=${endDateStr}&userId=${user.id}`
       );
       const data = await response.json();
 
       if (response.ok) {
-        console.log('Raw tasks data from API:', data);
-        
         const formattedTasks = data.map((task) => {
-          console.log('Processing task:', task);
+          // Parse time in 12-hour format
+          const [time, period] = task.formatted_time.split(' '); // Split "10:10 AM" into ["10:10", "AM"]
+          let [hours, minutes] = time.split(':').map(Number);
           
-          // Handle time formatting
-          let minutesSinceMidnight = 0;
-          if (task.formatted_time) {
-            const [hours, minutes] = task.formatted_time.split(":");
-            minutesSinceMidnight = Number.parseInt(hours) * 60 + Number.parseInt(minutes);
-          } else if (task.Task_time) {
-            const timeStr = new Date(task.Task_time).toTimeString().split(' ')[0];
-            const [hours, minutes] = timeStr.split(":");
-            minutesSinceMidnight = Number.parseInt(hours) * 60 + Number.parseInt(minutes);
+          // Convert to 24-hour format
+          if (period === 'PM' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'AM' && hours === 12) {
+            hours = 0;
           }
           
-          // Handle date formatting
-          const taskDateStr = task.task_date || task.task_startDate;
-          console.log(`Task date string: ${taskDateStr}`);
+          const minutesSinceMidnight = hours * 60 + minutes;
           
-          let taskDate;
-          if (taskDateStr) {
-            const [year, month, day] = taskDateStr.split('-').map(Number);
-            taskDate = new Date(Date.UTC(year, month - 1, day));
-            taskDate.setMinutes(taskDate.getMinutes() + taskDate.getTimezoneOffset());
-          } else {
-            taskDate = new Date(); // Default to today if no date
-          }
+          // Parse the task date properly
+          const [year, month, day] = task.task_date.split('-').map(Number);
+          const taskDate = new Date(year, month - 1, day);
 
           return {
             id: task.task_id,
             title: task.task_Title,
-            category: task.task_tags || "Uncategorized",
-            priority: task.task_priority || "medium",
-            duration: Number.parseInt(task.task_duration) || 60,
+            category: task.task_tags,
+            priority: task.task_priority,
+            duration: parseInt(task.task_duration),
             startMinute: minutesSinceMidnight,
-            endMinute: minutesSinceMidnight + (Number.parseInt(task.task_duration) || 60),
+            endMinute: minutesSinceMidnight + parseInt(task.task_duration),
             date: taskDate,
-            dateStr: taskDateStr
+            dateStr: task.task_date,
+            time: task.formatted_time
           };
         });
-        
-        console.log('Formatted tasks:', formattedTasks);
         setTasks(formattedTasks);
       } else {
         throw new Error(data.message || "Failed to fetch tasks");
@@ -204,28 +192,8 @@ export default function WeekView() {
 
   // Get tasks for a specific day
   const getTasksForDay = (date) => {
-    // Create a date string in YYYY-MM-DD format for comparison
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    
-    console.log(`Checking tasks for date: ${dateStr}`);
-    
-    const tasksForDay = tasks.filter((task) => {
-      // Get the task date from either dateStr or task_date property
-      const taskDate = task.dateStr || task.date;
-      
-      // Convert task date to YYYY-MM-DD format if it's a Date object
-      let formattedTaskDate = taskDate;
-      if (taskDate instanceof Date) {
-        formattedTaskDate = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
-      }
-      
-      const matches = formattedTaskDate === dateStr;
-      console.log(`Task ${task.id} (${task.title}) date: ${formattedTaskDate}, matches ${dateStr}: ${matches}`);
-      return matches;
-    });
-    
-    console.log(`Found ${tasksForDay.length} tasks for ${dateStr}`);
-    return tasksForDay;
+    return tasks.filter((task) => task.dateStr === dateStr);
   };
 
   // Check if a date is today
@@ -450,8 +418,8 @@ export default function WeekView() {
                                    transition-all duration-200 cursor-pointer
                                    absolute z-10 mx-2 overflow-hidden`}
                         style={{
-                          top: `${startHour * 60 + (startMinuteInHour / 60) * 60}px`,
-                          height: `${Math.max(durationHours * 60, 30)}px`,
+                          top: `${(task.startMinute / 60) * 80}px`, // Assuming each hour is 80px high
+                          height: `${Math.max((task.duration / 60) * 80, 30)}px`,
                           left: `calc(${(columnStart - 1) / 8} * 100%)`,
                           width: `calc(100% / 8 - 16px)`,
                         }}

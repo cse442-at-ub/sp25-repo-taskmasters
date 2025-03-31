@@ -12,6 +12,7 @@ export default function CreateTaskForm({ onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDurationModalOpen, setIsDurationModalOpen] = useState(false);
   const [taskDuration, setTaskDuration] = useState(60); // Default 60 minutes
+  const [displacementNotice, setDisplacementNotice] = useState(null);
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -57,7 +58,7 @@ export default function CreateTaskForm({ onClose }) {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Function to find free time slots in the calendar
-  const findFreeTimeSlot = async (date, duration) => {
+  const findFreeTimeSlot = async (date, duration, priority) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
       if (!user) {
@@ -75,8 +76,8 @@ export default function CreateTaskForm({ onClose }) {
       
       const tasks = await response.json();
       
-      // Convert tasks to time slots (start and end minutes since midnight)
-      const busySlots = tasks.map(task => {
+      // Convert tasks to time slots with priority information
+      const taskSlots = tasks.map(task => {
         let startMinute = 0;
         if (task.formatted_time) {
           const [hours, minutes] = task.formatted_time.split(':');
@@ -89,57 +90,280 @@ export default function CreateTaskForm({ onClose }) {
         const taskDuration = parseInt(task.task_duration) || 60;
         const endMinute = startMinute + taskDuration;
         
-        return { start: startMinute, end: endMinute };
+        return { 
+          id: task.task_id,
+          title: task.task_Title || 'Untitled Task',
+          start: startMinute, 
+          end: endMinute,
+          priority: task.task_priority || 'medium',
+          duration: taskDuration
+        };
       });
       
-      // Sort busy slots by start time
-      busySlots.sort((a, b) => a.start - b.start);
+      // Define working hours (9AM to 5PM)
+      const dayStart = 9 * 60; // 9AM in minutes
+      const dayEnd = 17 * 60; // 5PM in minutes
       
-      // Define working hours (9am to 12am)
-      const dayStart = 9 * 60; // 9am in minutes
-      const dayEnd = 24 * 60; // 12am in minutes
+      // Define priority levels (for comparison)
+      const priorityValue = {
+        'high': 3,
+        'medium': 2,
+        'low': 1
+      };
       
-      // Find free slots
+      const currentPriorityValue = priorityValue[priority] || 2; // Default to medium if not specified
+      
+      // Sort tasks by start time 
+      taskSlots.sort((a, b) => a.start - b.start);
+      
+      // Update the isTimeSlotAvailable function (inside this scope)
+      const isTimeSlotAvailable = (startMinute, taskDuration) => {
+        const endMinute = startMinute + taskDuration;
+        
+        for (const task of taskSlots) {
+          // Check for any overlap
+          if ((startMinute >= task.start && startMinute < task.end) ||
+              (endMinute > task.start && endMinute <= task.end) ||
+              (startMinute <= task.start && endMinute >= task.end)) {
+            return false;
+          }
+        }
+        return true;
+      };
+      
+      // For low priority tasks: find the latest available slot
+      if (priority === 'low') {
+        // Start from the end of the day and work backwards
+        let availableStart = dayEnd - duration;
+        
+        // Check each potential slot from latest to earliest
+        while (availableStart >= dayStart) {
+          // Ensure this slot doesn't overlap with any existing task
+          if (isTimeSlotAvailable(availableStart, duration)) {
+            // Found a suitable slot for low priority task
+            const hours = Math.floor(availableStart / 60);
+            const minutes = availableStart % 60;
+            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            const endMinute = availableStart + duration;
+            const endHours = Math.floor(endMinute / 60);
+            const endMinutes = endMinute % 60;
+            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            
+            return { startTime: startTimeStr, endTime: endTimeStr };
+          }
+          
+          // Move back by 30-minute intervals
+          availableStart -= 30;
+        }
+        
+        // No suitable slot found for low priority
+        return null;
+      }
+      
+      // For medium priority tasks: find a reasonable slot and potentially displace low priority tasks
+      if (priority === 'medium') {
+        // Find all free slots first
+        let freeSlots = [];
+        let currentTime = dayStart;
+        
+        // Sort task slots by start time
+        taskSlots.sort((a, b) => a.start - b.start);
+        
+        // Find gaps between existing tasks
+        for (const slot of taskSlots) {
+          if (slot.start > currentTime) {
+            freeSlots.push({ start: currentTime, end: slot.start });
+          }
+          currentTime = Math.max(currentTime, slot.end);
+        }
+        
+        // Add the final slot if there's time left
+        if (currentTime < dayEnd) {
+          freeSlots.push({ start: currentTime, end: dayEnd });
+        }
+        
+        // Filter viable free slots that can fit this task
+        const viableSlots = freeSlots.filter(slot => (slot.end - slot.start) >= duration);
+        
+        if (viableSlots.length > 0) {
+          // Find the earliest viable slot for medium priority
+          const earliestViableSlot = viableSlots[0];
+          
+          // Round to nearest 30-minute interval
+          const startMinute = Math.ceil(earliestViableSlot.start / 30) * 30;
+          
+          // Ensure this slot doesn't overlap with any tasks
+          if (isTimeSlotAvailable(startMinute, duration)) {
+            const hours = Math.floor(startMinute / 60);
+            const minutes = startMinute % 60;
+            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            const endMinute = startMinute + duration;
+            const endHours = Math.floor(endMinute / 60);
+            const endMinutes = endMinute % 60;
+            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            
+            return { startTime: startTimeStr, endTime: endTimeStr };
+          }
+        }
+        
+        // Try each viable slot rather than just the first one
+        for (const slot of viableSlots) {
+          // Round to nearest 30-minute interval
+          const startMinute = Math.ceil(slot.start / 30) * 30;
+          
+          if (isTimeSlotAvailable(startMinute, duration)) {
+            const hours = Math.floor(startMinute / 60);
+            const minutes = startMinute % 60;
+            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            const endMinute = startMinute + duration;
+            const endHours = Math.floor(endMinute / 60);
+            const endMinutes = endMinute % 60;
+            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            
+            return { startTime: startTimeStr, endTime: endTimeStr };
+          }
+        }
+        
+        // If no free slots, try to displace low priority tasks
+        const lowPriorityTasks = taskSlots.filter(task => task.priority === 'low');
+        if (lowPriorityTasks.length > 0) {
+          // Sort by start time to find the earliest low priority task
+          lowPriorityTasks.sort((a, b) => a.start - b.start);
+          const taskToDisplace = lowPriorityTasks[0];
+          
+          // Use the slot of the earliest low priority task
+          const startMinute = taskToDisplace.start;
+          
+          // Return the slot with displacement info
+          const hours = Math.floor(startMinute / 60);
+          const minutes = startMinute % 60;
+          const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          
+          const endMinute = startMinute + duration;
+          const endHours = Math.floor(endMinute / 60);
+          const endMinutes = endMinute % 60;
+          const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+          
+          return { 
+            startTime: startTimeStr, 
+            endTime: endTimeStr,
+            displacedTask: { 
+              id: taskToDisplace.id,
+              title: taskToDisplace.title 
+            }
+          };
+        }
+        
+        // No viable slots even after attempting to displace low priority tasks
+        return null;
+      }
+      
+      // For high priority tasks: schedule as early as possible, displacing lower priority tasks if needed
+      if (priority === 'high') {
+        // Start at the beginning of the working day
+        let startMinute = dayStart;
+        
+        // Try to find the earliest viable slot, displacing lower priority tasks if needed
+        while (startMinute + duration <= dayEnd) {
+          // First check if the slot is available without displacing anything
+          if (isTimeSlotAvailable(startMinute, duration)) {
+            const hours = Math.floor(startMinute / 60);
+            const minutes = startMinute % 60;
+            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            const endMinute = startMinute + duration;
+            const endHours = Math.floor(endMinute / 60);
+            const endMinutes = endMinute % 60;
+            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            
+            return { startTime: startTimeStr, endTime: endTimeStr };
+          }
+          
+          // If slot is not available, check for conflicting tasks
+          let conflictingTasks = [];
+          
+          // Find all tasks that conflict with this time slot
+          for (const task of taskSlots) {
+            const endMinute = startMinute + duration;
+            if ((startMinute >= task.start && startMinute < task.end) ||
+                (endMinute > task.start && endMinute <= task.end) ||
+                (startMinute <= task.start && endMinute >= task.end)) {
+              
+              conflictingTasks.push(task);
+            }
+          }
+          
+          // Check if all conflicting tasks have lower priority
+          const allLowerPriority = conflictingTasks.every(task => 
+            priorityValue[task.priority] < priorityValue['high']);
+          
+          if (allLowerPriority && conflictingTasks.length > 0) {
+            // Can displace these lower priority tasks
+            const hours = Math.floor(startMinute / 60);
+            const minutes = startMinute % 60;
+            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            const endMinute = startMinute + duration;
+            const endHours = Math.floor(endMinute / 60);
+            const endMinutes = endMinute % 60;
+            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            
+            // Return with information about displaced tasks
+            return { 
+              startTime: startTimeStr, 
+              endTime: endTimeStr,
+              displacedTasks: conflictingTasks.map(task => ({
+                id: task.id,
+                title: task.title
+              }))
+            };
+          }
+          
+          // Move forward by 30-minute intervals
+          startMinute += 30;
+        }
+        
+        // No viable slots found for high priority task
+        return null;
+      }
+      
+      // Fallback case - implement default slot finding logic
       const freeSlots = [];
       let currentTime = dayStart;
       
-      for (const slot of busySlots) {
+      // Find gaps between tasks
+      for (const slot of taskSlots) {
         if (slot.start > currentTime) {
           freeSlots.push({ start: currentTime, end: slot.start });
         }
         currentTime = Math.max(currentTime, slot.end);
       }
       
-      // Add the last free slot if there's time left in the day
+      // Add the last slot if there's time left
       if (currentTime < dayEnd) {
         freeSlots.push({ start: currentTime, end: dayEnd });
       }
       
-      // Filter out slots that are too small (less than the specified duration)
+      // Filter viable slots
       const viableSlots = freeSlots.filter(slot => (slot.end - slot.start) >= duration);
       
       if (viableSlots.length === 0) {
-        return null; // No suitable free slots found
+        return null; // No suitable slots found
       }
       
-      // Find the middle of the largest free slot
-      const largestSlot = viableSlots.reduce(
-        (max, slot) => (slot.end - slot.start > max.end - max.start) ? slot : max, 
-        viableSlots[0]
-      );
+      // Find an appropriate slot based on general criteria
+      const bestSlot = viableSlots[0]; // Choose the earliest slot by default
       
-      // Calculate the middle time
-      const middleMinute = Math.floor(largestSlot.start + (largestSlot.end - largestSlot.start - duration) / 2);
-      
-      // Convert to hours and minutes
-      const hours = Math.floor(middleMinute / 60);
-      const minutes = middleMinute % 60;
-      
-      // Format as HH:MM
+      // Calculate time in the chosen slot
+      const startMinute = bestSlot.start;
+      const hours = Math.floor(startMinute / 60);
+      const minutes = startMinute % 60;
       const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
       
-      // Calculate end time
-      const endMinute = middleMinute + duration;
+      const endMinute = startMinute + duration;
       const endHours = Math.floor(endMinute / 60);
       const endMinutes = endMinute % 60;
       const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
@@ -168,6 +392,7 @@ export default function CreateTaskForm({ onClose }) {
   const handleDurationSelect = async () => {
     setIsDurationModalOpen(false);
     setIsLoading(true);
+    setDisplacementNotice(null); // Clear any previous notifications
     
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -175,11 +400,18 @@ export default function CreateTaskForm({ onClose }) {
         throw new Error('User not logged in');
       }
 
+      // Validate priority is set before auto-applying
+      if (!formData.priority) {
+        setError('Please select a priority level before using Auto Apply');
+        setIsLoading(false);
+        return;
+      }
+
       const date = new Date(formData.startDate);
-      const freeSlot = await findFreeTimeSlot(date, taskDuration);
+      const freeSlot = await findFreeTimeSlot(date, taskDuration, formData.priority);
       
       if (!freeSlot) {
-        setError('No suitable free time slots found for this date. Please try another date or set the time manually.');
+        setError('No suitable time slots found for this task with the selected priority. Please try a different priority or set the time manually.');
         setIsLoading(false);
         return;
       }
@@ -199,6 +431,19 @@ export default function CreateTaskForm({ onClose }) {
       const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
       const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
       const duration = Math.round((endTime - startTime) / (1000 * 60));
+
+      // Show in-app notification instead of alert for displaced tasks
+      if (freeSlot.displacedTask) {
+        setDisplacementNotice({
+          message: `The auto-scheduling has displaced a lower priority task: "${freeSlot.displacedTask.title}"`,
+          type: 'warning'
+        });
+      } else if (freeSlot.displacedTasks && freeSlot.displacedTasks.length > 0) {
+        setDisplacementNotice({
+          message: `The auto-scheduling has displaced ${freeSlot.displacedTasks.length} lower priority tasks.`,
+          type: 'warning'
+        });
+      }
 
       // For recurring tasks, create a task for each selected day
       if (isRecurring && selectedDays.length > 0) {
@@ -248,8 +493,8 @@ export default function CreateTaskForm({ onClose }) {
         onClose();
         return;
       }
-
-      // For non-recurring tasks, create a single task using the secure API utility
+      
+      // For a single non-recurring task
       const response = await post('tasks.php', {
         ...updatedFormData,
         userId: user.id,
@@ -258,16 +503,14 @@ export default function CreateTaskForm({ onClose }) {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to create task');
+        throw new Error('Failed to create task');
       }
       
-      // Close the modal after successful task creation
+      setIsLoading(false);
       onClose();
-      
     } catch (error) {
-      console.error('Error auto-applying task:', error);
-      setError(error.message || 'Failed to auto-apply task');
+      console.error('Error applying auto-scheduling:', error);
+      setError(error.message || 'Failed to auto-schedule task');
       setIsLoading(false);
     }
   };
@@ -275,7 +518,8 @@ export default function CreateTaskForm({ onClose }) {
   const navigate = useNavigate()
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setError('');
+    setDisplacementNotice(null);
     
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -283,32 +527,122 @@ export default function CreateTaskForm({ onClose }) {
         throw new Error('User not logged in');
       }
 
-      // If end date is not provided, use start date
-      const updatedFormData = { ...formData };
-      if (!updatedFormData.endDate && updatedFormData.startDate) {
-        updatedFormData.endDate = updatedFormData.startDate;
-        setFormData(updatedFormData);
+      // Check if required fields are filled
+      if (!formData.taskName.trim()) {
+        setError('Task name is required');
+        return;
+      }
+      
+      if (!formData.startDate) {
+        setError('Start date is required');
+        return;
+      }
+      
+      if (!formData.priority) {
+        setError('Please select a priority level');
+        return;
+      }
+      
+      // If no end date is provided, use start date
+      if (!formData.endDate) {
+        setFormData(prev => ({...prev, endDate: formData.startDate}));
+      }
+      
+      // Check if start time and end time are both provided, or neither
+      const hasStartTime = !!formData.startTime;
+      const hasEndTime = !!formData.endTime;
+      
+      if ((hasStartTime && !hasEndTime) || (!hasStartTime && hasEndTime)) {
+        setError('Both start time and end time must be provided, or use Auto Apply');
+        return;
       }
 
-      const startTime = new Date(`2000/01/01 ${updatedFormData.startTime}`);
-      const endTime = new Date(`2000/01/01 ${updatedFormData.endTime}`);
-      const duration = Math.round((endTime - startTime) / (1000 * 60));
-
-      // If recurring is enabled but no days are selected, show an error
-      if (isRecurring && selectedDays.length === 0) {
-        setError('Please select at least one day for recurring tasks');
-        setIsLoading(false);
+      // Calculate duration if times are manually set
+      let duration = 0;
+      if (hasStartTime && hasEndTime) {
+        const startTime = new Date(`2000/01/01 ${formData.startTime}`);
+        const endTime = new Date(`2000/01/01 ${formData.endTime}`);
+        duration = Math.round((endTime - startTime) / (1000 * 60));
+        
+        if (duration <= 0) {
+          setError('End time must be after start time');
+          return;
+        }
+        
+        // For manually set times, check for conflicts with existing tasks
+        setIsLoading(true);
+        
+        try {
+          const date = new Date(formData.startDate);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          // Fetch tasks for the selected date
+          const response = await fetch(`${config.apiUrl}/tasks.php?date=${dateStr}&userId=${user.id}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch tasks');
+          }
+          
+          const tasks = await response.json();
+          
+          // Convert the selected time to minutes
+          const [startHours, startMinutes] = formData.startTime.split(':');
+          const selectedStartMinute = parseInt(startHours) * 60 + parseInt(startMinutes);
+          const selectedEndMinute = selectedStartMinute + duration;
+          
+          // Check for conflicts
+          let hasConflict = false;
+          let conflictingTask = null;
+          
+          for (const task of tasks) {
+            let taskStartMinute = 0;
+            if (task.formatted_time) {
+              const [hours, minutes] = task.formatted_time.split(':');
+              taskStartMinute = parseInt(hours) * 60 + parseInt(minutes);
+            } else if (task.Task_time) {
+              const timeObj = new Date(task.Task_time);
+              taskStartMinute = timeObj.getHours() * 60 + timeObj.getMinutes();
+            }
+            
+            const taskDuration = parseInt(task.task_duration) || 60;
+            const taskEndMinute = taskStartMinute + taskDuration;
+            
+            // Check for overlap
+            if ((selectedStartMinute >= taskStartMinute && selectedStartMinute < taskEndMinute) ||
+                (selectedEndMinute > taskStartMinute && selectedEndMinute <= taskEndMinute) ||
+                (selectedStartMinute <= taskStartMinute && selectedEndMinute >= taskEndMinute)) {
+              hasConflict = true;
+              conflictingTask = task;
+              break;
+            }
+          }
+          
+          if (hasConflict) {
+            setIsLoading(false);
+            setError('The selected time conflicts with an existing task. Please choose a different time or use Auto Apply.');
+            return;
+          }
+          
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error checking for conflicts:', error);
+          setIsLoading(false);
+          // Continue anyway if we can't check for conflicts
+        }
+      } else {
+        // If no times are provided, trigger auto-apply
+        handleAutoApplyClick(e);
         return;
       }
 
       // For recurring tasks, create a task for each selected day
       if (isRecurring && selectedDays.length > 0) {
         // Create a task for each selected day
+        setIsLoading(true);
         const createRecurringTasks = async () => {
           const startDate = new Date(formData.startDate);
-          const endDate = new Date(formData.endDate);
+          const endDate = new Date(formData.endDate || formData.startDate);
           
-          // Create a task for the initial date using the secure API utility
+          // Create a task for the initial date
           const initialResponse = await post('tasks.php', {
             ...formData,
             userId: user.id,
@@ -332,7 +666,6 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-              // Use the secure API utility for recurring tasks
               await post('tasks.php', {
                 ...formData,
                 userId: user.id,
@@ -346,29 +679,29 @@ export default function CreateTaskForm({ onClose }) {
         };
 
         await createRecurringTasks();
+        setIsLoading(false);
         onClose();
         return;
       }
 
-      // For non-recurring tasks, create a single task using the secure API utility
+      // For non-recurring tasks, create a single task
+      setIsLoading(true);
       const response = await post('tasks.php', {
-        ...updatedFormData,
+        ...formData,
         userId: user.id,
         duration: duration,
         recurring: 0
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        onClose();
-      } else {
-        setError(data.message || 'Failed to create task');
+      if (!response.ok) {
+        throw new Error('Failed to create task');
       }
+      
+      setIsLoading(false);
+      onClose();
     } catch (error) {
       console.error('Error creating task:', error);
       setError(error.message || 'Failed to create task');
-    } finally {
       setIsLoading(false);
     }
   }
@@ -379,11 +712,122 @@ export default function CreateTaskForm({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto relative">
         <h1 className="text-2xl font-semibold text-center mb-6">Create New Task</h1>
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded mb-4">
             {error}
+          </div>
+        )}
+        
+        {displacementNotice && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded mb-4 flex justify-between items-center">
+            <span>{displacementNotice.message}</span>
+            <button 
+              className="text-yellow-600 hover:text-yellow-800"
+              onClick={() => setDisplacementNotice(null)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        )}
+        
+        {isLoading && (
+          <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
+            <div className="text-center">
+              <div className="w-10 h-10 border-4 border-[#9706e9] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-gray-700">Auto-scheduling your task...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Duration Selection Modal */}
+        {isDurationModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+            <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-6">
+              <h2 className="text-xl font-semibold text-center mb-4">Select Task Duration</h2>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  How long should this task be?
+                </label>
+                
+                <div className="flex flex-col space-y-4">
+                  {/* Duration slider */}
+                  <div className="w-full">
+                    <input
+                      type="range"
+                      min="15"
+                      max="240"
+                      step="15"
+                      value={taskDuration}
+                      onChange={(e) => setTaskDuration(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#9706e9]"
+                    />
+                    
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>15m</span>
+                      <span>1h</span>
+                      <span>2h</span>
+                      <span>3h</span>
+                      <span>4h</span>
+                    </div>
+                  </div>
+                  
+                  {/* Duration display */}
+                  <div className="text-center text-2xl font-bold text-[#9706e9]">
+                    {taskDuration < 60 
+                      ? `${taskDuration} minutes` 
+                      : taskDuration % 60 === 0 
+                        ? `${taskDuration / 60} hour${taskDuration > 60 ? 's' : ''}` 
+                        : `${Math.floor(taskDuration / 60)}h ${taskDuration % 60}m`
+                    }
+                  </div>
+                  
+                  {/* Quick selection buttons */}
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {[30, 45, 60, 90, 120].map(duration => (
+                      <button
+                        key={duration}
+                        type="button"
+                        onClick={() => setTaskDuration(duration)}
+                        className={`px-3 py-1 rounded-full text-sm ${
+                          taskDuration === duration 
+                            ? 'bg-[#9706e9] text-white' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {duration < 60 
+                          ? `${duration}m` 
+                          : duration % 60 === 0 
+                            ? `${duration / 60}h` 
+                            : `${Math.floor(duration / 60)}h ${duration % 60}m`
+                        }
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsDurationModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDurationSelect}
+                  className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc]"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -532,7 +976,7 @@ export default function CreateTaskForm({ onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+            <p className="block text-sm font-medium text-gray-700 mb-2">Priority</p>
             <div className="flex gap-6">
               {["low", "medium", "high"].map((level) => (
                 <label key={level} className="flex items-center">
@@ -585,94 +1029,6 @@ export default function CreateTaskForm({ onClose }) {
           </div>
         </form>
       </div>
-      
-      {/* Duration Selection Modal */}
-      {isDurationModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-6">
-            <h2 className="text-xl font-semibold text-center mb-4">Select Task Duration</h2>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                How long should this task be?
-              </label>
-              
-              <div className="flex flex-col space-y-4">
-                {/* Duration slider */}
-                <div className="w-full">
-                  <input
-                    type="range"
-                    min="15"
-                    max="240"
-                    step="15"
-                    value={taskDuration}
-                    onChange={(e) => setTaskDuration(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#9706e9]"
-                  />
-                  
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>15m</span>
-                    <span>1h</span>
-                    <span>2h</span>
-                    <span>3h</span>
-                    <span>4h</span>
-                  </div>
-                </div>
-                
-                {/* Duration display */}
-                <div className="text-center text-2xl font-bold text-[#9706e9]">
-                  {taskDuration < 60 
-                    ? `${taskDuration} minutes` 
-                    : taskDuration % 60 === 0 
-                      ? `${taskDuration / 60} hour${taskDuration > 60 ? 's' : ''}` 
-                      : `${Math.floor(taskDuration / 60)}h ${taskDuration % 60}m`
-                  }
-                </div>
-                
-                {/* Quick selection buttons */}
-                <div className="flex flex-wrap gap-2 justify-center mt-2">
-                  {[30, 45, 60, 90, 120].map(duration => (
-                    <button
-                      key={duration}
-                      type="button"
-                      onClick={() => setTaskDuration(duration)}
-                      className={`px-3 py-1 rounded-full text-sm ${
-                        taskDuration === duration 
-                          ? 'bg-[#9706e9] text-white' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {duration < 60 
-                        ? `${duration}m` 
-                        : duration % 60 === 0 
-                          ? `${duration / 60}h` 
-                          : `${Math.floor(duration / 60)}h ${duration % 60}m`
-                      }
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setIsDurationModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDurationSelect}
-                className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc]"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
