@@ -228,14 +228,23 @@ export default function DayView() {
 
           {/* View Toggle */}
           <div className="flex mb-4 md:mb-8">
-            <button className="bg-[#9706e9] text-white px-4 py-2 rounded-l font-semibold">Day</button>
-            <button 
-              onClick={() => navigate('/week-view')} 
+            <button
+              className="bg-[#9706e9] text-white px-4 py-2 rounded-l font-semibold"
+            >
+              Day
+            </button>
+            <button
+              onClick={() => navigate('/week-view')}
               className="bg-[#9706e9]/70 text-white px-4 py-2 border-l border-r border-purple-800 hover:bg-[#9706e9]"
             >
               Week
             </button>
-            <button className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r hover:bg-[#9706e9]">Month</button>
+            <button
+              onClick={() => navigate('/month-view')}
+              className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r hover:bg-[#9706e9]"
+            >
+              Month
+            </button>
           </div>
 
           {/* Schedule Grid */}
