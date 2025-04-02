@@ -116,12 +116,17 @@ export default function CreateTaskForm({ onClose }) {
       // Sort tasks by start time 
       taskSlots.sort((a, b) => a.start - b.start);
       
-      // Update the isTimeSlotAvailable function (inside this scope)
+      // Function to check if a time slot is available
       const isTimeSlotAvailable = (startMinute, taskDuration) => {
         const endMinute = startMinute + taskDuration;
         
+        // Check if the slot is within working hours
+        if (startMinute < dayStart || endMinute > dayEnd) {
+          return false;
+        }
+        
+        // Check for any overlap with existing tasks
         for (const task of taskSlots) {
-          // Check for any overlap
           if ((startMinute >= task.start && startMinute < task.end) ||
               (endMinute > task.start && endMinute <= task.end) ||
               (startMinute <= task.start && endMinute >= task.end)) {
@@ -131,16 +136,26 @@ export default function CreateTaskForm({ onClose }) {
         return true;
       };
       
+      // Function to find the next available slot
+      const findNextAvailableSlot = (startFrom, duration) => {
+        let currentTime = startFrom;
+        
+        while (currentTime + duration <= dayEnd) {
+          if (isTimeSlotAvailable(currentTime, duration)) {
+            return currentTime;
+          }
+          currentTime += 30; // Move forward by 30-minute intervals
+        }
+        return null;
+      };
+      
       // For low priority tasks: find the latest available slot
       if (priority === 'low') {
         // Start from the end of the day and work backwards
         let availableStart = dayEnd - duration;
         
-        // Check each potential slot from latest to earliest
         while (availableStart >= dayStart) {
-          // Ensure this slot doesn't overlap with any existing task
           if (isTimeSlotAvailable(availableStart, duration)) {
-            // Found a suitable slot for low priority task
             const hours = Math.floor(availableStart / 60);
             const minutes = availableStart % 60;
             const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
@@ -152,223 +167,66 @@ export default function CreateTaskForm({ onClose }) {
             
             return { startTime: startTimeStr, endTime: endTimeStr };
           }
-          
-          // Move back by 30-minute intervals
           availableStart -= 30;
         }
-        
-        // No suitable slot found for low priority
         return null;
       }
       
-      // For medium priority tasks: find a reasonable slot and potentially displace low priority tasks
+      // For medium priority tasks: find the earliest available slot
       if (priority === 'medium') {
-        // Find all free slots first
-        let freeSlots = [];
-        let currentTime = dayStart;
+        const availableStart = findNextAvailableSlot(dayStart, duration);
         
-        // Sort task slots by start time
-        taskSlots.sort((a, b) => a.start - b.start);
-        
-        // Find gaps between existing tasks
-        for (const slot of taskSlots) {
-          if (slot.start > currentTime) {
-            freeSlots.push({ start: currentTime, end: slot.start });
-          }
-          currentTime = Math.max(currentTime, slot.end);
-        }
-        
-        // Add the final slot if there's time left
-        if (currentTime < dayEnd) {
-          freeSlots.push({ start: currentTime, end: dayEnd });
-        }
-        
-        // Filter viable free slots that can fit this task
-        const viableSlots = freeSlots.filter(slot => (slot.end - slot.start) >= duration);
-        
-        if (viableSlots.length > 0) {
-          // Find the earliest viable slot for medium priority
-          const earliestViableSlot = viableSlots[0];
-          
-          // Round to nearest 30-minute interval
-          const startMinute = Math.ceil(earliestViableSlot.start / 30) * 30;
-          
-          // Ensure this slot doesn't overlap with any tasks
-          if (isTimeSlotAvailable(startMinute, duration)) {
-            const hours = Math.floor(startMinute / 60);
-            const minutes = startMinute % 60;
-            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            
-            const endMinute = startMinute + duration;
-            const endHours = Math.floor(endMinute / 60);
-            const endMinutes = endMinute % 60;
-            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-            
-            return { startTime: startTimeStr, endTime: endTimeStr };
-          }
-        }
-        
-        // Try each viable slot rather than just the first one
-        for (const slot of viableSlots) {
-          // Round to nearest 30-minute interval
-          const startMinute = Math.ceil(slot.start / 30) * 30;
-          
-          if (isTimeSlotAvailable(startMinute, duration)) {
-            const hours = Math.floor(startMinute / 60);
-            const minutes = startMinute % 60;
-            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            
-            const endMinute = startMinute + duration;
-            const endHours = Math.floor(endMinute / 60);
-            const endMinutes = endMinute % 60;
-            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-            
-            return { startTime: startTimeStr, endTime: endTimeStr };
-          }
-        }
-        
-        // If no free slots, try to displace low priority tasks
-        const lowPriorityTasks = taskSlots.filter(task => task.priority === 'low');
-        if (lowPriorityTasks.length > 0) {
-          // Sort by start time to find the earliest low priority task
-          lowPriorityTasks.sort((a, b) => a.start - b.start);
-          const taskToDisplace = lowPriorityTasks[0];
-          
-          // Use the slot of the earliest low priority task
-          const startMinute = taskToDisplace.start;
-          
-          // Return the slot with displacement info
-          const hours = Math.floor(startMinute / 60);
-          const minutes = startMinute % 60;
+        if (availableStart !== null) {
+          const hours = Math.floor(availableStart / 60);
+          const minutes = availableStart % 60;
           const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           
-          const endMinute = startMinute + duration;
+          const endMinute = availableStart + duration;
           const endHours = Math.floor(endMinute / 60);
           const endMinutes = endMinute % 60;
           const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
           
-          return { 
-            startTime: startTimeStr, 
-            endTime: endTimeStr,
-            displacedTask: { 
-              id: taskToDisplace.id,
-              title: taskToDisplace.title 
-            }
-          };
+          return { startTime: startTimeStr, endTime: endTimeStr };
         }
-        
-        // No viable slots even after attempting to displace low priority tasks
         return null;
       }
       
-      // For high priority tasks: schedule as early as possible, displacing lower priority tasks if needed
+      // For high priority tasks: find the earliest available slot
       if (priority === 'high') {
-        // Start at the beginning of the working day
-        let startMinute = dayStart;
+        const availableStart = findNextAvailableSlot(dayStart, duration);
         
-        // Try to find the earliest viable slot, displacing lower priority tasks if needed
-        while (startMinute + duration <= dayEnd) {
-          // First check if the slot is available without displacing anything
-          if (isTimeSlotAvailable(startMinute, duration)) {
-            const hours = Math.floor(startMinute / 60);
-            const minutes = startMinute % 60;
-            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            
-            const endMinute = startMinute + duration;
-            const endHours = Math.floor(endMinute / 60);
-            const endMinutes = endMinute % 60;
-            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-            
-            return { startTime: startTimeStr, endTime: endTimeStr };
-          }
+        if (availableStart !== null) {
+          const hours = Math.floor(availableStart / 60);
+          const minutes = availableStart % 60;
+          const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           
-          // If slot is not available, check for conflicting tasks
-          let conflictingTasks = [];
+          const endMinute = availableStart + duration;
+          const endHours = Math.floor(endMinute / 60);
+          const endMinutes = endMinute % 60;
+          const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
           
-          // Find all tasks that conflict with this time slot
-          for (const task of taskSlots) {
-            const endMinute = startMinute + duration;
-            if ((startMinute >= task.start && startMinute < task.end) ||
-                (endMinute > task.start && endMinute <= task.end) ||
-                (startMinute <= task.start && endMinute >= task.end)) {
-              
-              conflictingTasks.push(task);
-            }
-          }
-          
-          // Check if all conflicting tasks have lower priority
-          const allLowerPriority = conflictingTasks.every(task => 
-            priorityValue[task.priority] < priorityValue['high']);
-          
-          if (allLowerPriority && conflictingTasks.length > 0) {
-            // Can displace these lower priority tasks
-            const hours = Math.floor(startMinute / 60);
-            const minutes = startMinute % 60;
-            const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            
-            const endMinute = startMinute + duration;
-            const endHours = Math.floor(endMinute / 60);
-            const endMinutes = endMinute % 60;
-            const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-            
-            // Return with information about displaced tasks
-            return { 
-              startTime: startTimeStr, 
-              endTime: endTimeStr,
-              displacedTasks: conflictingTasks.map(task => ({
-                id: task.id,
-                title: task.title
-              }))
-            };
-          }
-          
-          // Move forward by 30-minute intervals
-          startMinute += 30;
+          return { startTime: startTimeStr, endTime: endTimeStr };
         }
-        
-        // No viable slots found for high priority task
         return null;
       }
       
-      // Fallback case - implement default slot finding logic
-      const freeSlots = [];
-      let currentTime = dayStart;
+      // Fallback case: try to find any available slot
+      const availableStart = findNextAvailableSlot(dayStart, duration);
       
-      // Find gaps between tasks
-      for (const slot of taskSlots) {
-        if (slot.start > currentTime) {
-          freeSlots.push({ start: currentTime, end: slot.start });
-        }
-        currentTime = Math.max(currentTime, slot.end);
+      if (availableStart !== null) {
+        const hours = Math.floor(availableStart / 60);
+        const minutes = availableStart % 60;
+        const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        
+        const endMinute = availableStart + duration;
+        const endHours = Math.floor(endMinute / 60);
+        const endMinutes = endMinute % 60;
+        const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+        
+        return { startTime: startTimeStr, endTime: endTimeStr };
       }
       
-      // Add the last slot if there's time left
-      if (currentTime < dayEnd) {
-        freeSlots.push({ start: currentTime, end: dayEnd });
-      }
-      
-      // Filter viable slots
-      const viableSlots = freeSlots.filter(slot => (slot.end - slot.start) >= duration);
-      
-      if (viableSlots.length === 0) {
-        return null; // No suitable slots found
-      }
-      
-      // Find an appropriate slot based on general criteria
-      const bestSlot = viableSlots[0]; // Choose the earliest slot by default
-      
-      // Calculate time in the chosen slot
-      const startMinute = bestSlot.start;
-      const hours = Math.floor(startMinute / 60);
-      const minutes = startMinute % 60;
-      const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-      
-      const endMinute = startMinute + duration;
-      const endHours = Math.floor(endMinute / 60);
-      const endMinutes = endMinute % 60;
-      const endTimeStr = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-      
-      return { startTime: startTimeStr, endTime: endTimeStr };
+      return null;
     } catch (error) {
       console.error('Error finding free time slot:', error);
       return null;
