@@ -5,6 +5,8 @@ import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import DayView from './components/DayView';
 import WeekView from './components/WeekView';
+import AvatarCustomization from './components/AvatarCustomization';
+import Achievements from './components/Achievements';
 import './index.css';
 
 function App() {
@@ -16,8 +18,8 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/calendar" element={<DayView />} />
         <Route path="/week-view" element={<WeekView />} />
-        <Route path="/avatar" element={<div>Avatar Customization Coming Soon</div>} />
-        <Route path="/achievements" element={<div>Achievements Coming Soon</div>} />
+        <Route path="/avatar" element={<AvatarCustomization />} />
+        <Route path="/achievements" element={<Achievements />} />
         <Route path="/create-task" element={<div>Create Task Coming Soon</div>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
