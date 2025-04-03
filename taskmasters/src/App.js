@@ -5,6 +5,8 @@ import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import DayView from './components/DayView';
 import WeekView from './components/WeekView';
+import MonthView from './components/MonthView';
+import AvatarCustomization from './components/AvatarCustomization';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -15,7 +17,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
+
         {/* Protected routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -32,9 +34,14 @@ function App() {
             <WeekView />
           </ProtectedRoute>
         } />
+        <Route path="/month-view" element={
+          <ProtectedRoute>
+            <MonthView />
+          </ProtectedRoute>
+        } />
         <Route path="/avatar" element={
           <ProtectedRoute>
-            <div>Avatar Customization Coming Soon</div>
+            <AvatarCustomization />
           </ProtectedRoute>
         } />
         <Route path="/achievements" element={
@@ -47,10 +54,10 @@ function App() {
             <div>Create Task Coming Soon</div>
           </ProtectedRoute>
         } />
-        
+
         {/* Default route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        
+
         {/* Catch all route - redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -59,3 +66,4 @@ function App() {
 }
 
 export default App;
+
