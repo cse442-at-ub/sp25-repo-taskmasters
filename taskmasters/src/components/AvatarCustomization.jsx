@@ -56,6 +56,7 @@ export default function AvatarCustomization() {
   const [changeNotification, setChangeNotification] = useState(null);
   const [currentAvatar, setCurrentAvatar] = useState(null);
   const [userPoints, setUserPoints] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
   const [purchasedAvatars, setPurchasedAvatars] = useState([]);
   const [availableAvatars, setAvailableAvatars] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,10 +66,26 @@ export default function AvatarCustomization() {
     const fetchAvatarData = async () => {
       try {
         setIsLoading(true);
-        const userData = JSON.parse(localStorage.getItem('user'));
-        if (!userData || !userData.id) {
-          console.error('User data not found');
-          navigate('/login');
+        
+        // Get user data with error handling
+        let userData;
+        try {
+          const userDataString = localStorage.getItem('user');
+          if (!userDataString) {
+            console.warn('User data not found in localStorage');
+            // Let ProtectedRoute handle the redirect
+            return;
+          }
+          
+          userData = JSON.parse(userDataString);
+          if (!userData || !userData.id) {
+            console.warn('User ID not found in user data');
+            // Let ProtectedRoute handle the redirect
+            return;
+          }
+        } catch (error) {
+          console.error('Error processing user data:', error);
+          // Don't redirect or clear data here, let ProtectedRoute handle it
           return;
         }
 
@@ -78,10 +95,18 @@ export default function AvatarCustomization() {
           const dashboardData = await dashboardResponse.json();
           console.log('Dashboard data:', dashboardData);
           
-          if (dashboardData && dashboardData.level && dashboardData.level.totalPoints !== undefined) {
-            const points = parseInt(dashboardData.level.totalPoints);
-            setUserPoints(points);
-            console.log('Setting user points from dashboard to:', points);
+          if (dashboardData && dashboardData.level) {
+            if (dashboardData.level.totalPoints !== undefined) {
+              const points = parseInt(dashboardData.level.totalPoints);
+              setUserPoints(points);
+              console.log('Setting user points from dashboard to:', points);
+            }
+            
+            if (dashboardData.level.currentLevel !== undefined) {
+              const level = parseInt(dashboardData.level.currentLevel);
+              setUserLevel(level);
+              console.log('Setting user level from dashboard to:', level);
+            }
           }
         } catch (error) {
           console.error('Error fetching dashboard data:', error);
@@ -161,10 +186,25 @@ export default function AvatarCustomization() {
         return;
       }
 
-      const userData = JSON.parse(localStorage.getItem('user'));
-      if (!userData || !userData.id) {
-        console.error('User data not found');
-        navigate('/login');
+      // Get user data with error handling
+      let userData;
+      try {
+        const userDataString = localStorage.getItem('user');
+        if (!userDataString) {
+          console.warn('User data not found in localStorage');
+          // Let ProtectedRoute handle the redirect
+          return;
+        }
+        
+        userData = JSON.parse(userDataString);
+        if (!userData || !userData.id) {
+          console.warn('User ID not found in user data');
+          // Let ProtectedRoute handle the redirect
+          return;
+        }
+      } catch (error) {
+        console.error('Error processing user data:', error);
+        // Don't redirect or clear data here, let ProtectedRoute handle it
         return;
       }
 
@@ -242,10 +282,25 @@ export default function AvatarCustomization() {
 
   const handleSelectAvatar = async (avatar) => {
     try {
-      const userData = JSON.parse(localStorage.getItem('user'));
-      if (!userData || !userData.id) {
-        console.error('User data not found');
-        navigate('/login');
+      // Get user data with error handling
+      let userData;
+      try {
+        const userDataString = localStorage.getItem('user');
+        if (!userDataString) {
+          console.warn('User data not found in localStorage');
+          // Let ProtectedRoute handle the redirect
+          return;
+        }
+        
+        userData = JSON.parse(userDataString);
+        if (!userData || !userData.id) {
+          console.warn('User ID not found in user data');
+          // Let ProtectedRoute handle the redirect
+          return;
+        }
+      } catch (error) {
+        console.error('Error processing user data:', error);
+        // Don't redirect or clear data here, let ProtectedRoute handle it
         return;
       }
 
@@ -485,10 +540,17 @@ export default function AvatarCustomization() {
         {/* Header */}
         <div className="p-6 flex justify-between items-center">
           <h1 className="text-5xl font-bold">Avatar Customization</h1>
-          <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
-            <span className="font-mono font-bold text-white">
-              {userPoints}pts
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
+              <span className="font-mono font-bold text-white">
+                Level {userLevel}
+              </span>
+            </div>
+            <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
+              <span className="font-mono font-bold text-white">
+                {userPoints}pts
+              </span>
+            </div>
           </div>
         </div>
 

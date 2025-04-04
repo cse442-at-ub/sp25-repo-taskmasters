@@ -7,6 +7,7 @@ import DayView from './components/DayView';
 import WeekView from './components/WeekView';
 import MonthView from './components/MonthView';
 import AvatarCustomization from './components/AvatarCustomization';
+import Achievements from './components/Achievements';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -46,7 +47,7 @@ function App() {
         } />
         <Route path="/achievements" element={
           <ProtectedRoute>
-            <div>Achievements Coming Soon</div>
+            <Achievements />
           </ProtectedRoute>
         } />
         <Route path="/create-task" element={

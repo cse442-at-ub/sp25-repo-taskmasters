@@ -37,11 +37,35 @@ export const apiRequest = async (url, options = {}) => {
   
   // Handle unauthorized responses (e.g., expired session)
   if (response.status === 401) {
-    // Clear user data and redirect to login
-    localStorage.removeItem('user');
-    localStorage.removeItem('csrf_token');
-    window.location.href = '#/login';
-    throw new Error('Session expired. Please log in again.');
+    // Add debounce mechanism to prevent immediate logout on quick page transitions
+    // Only redirect to login if we consistently get 401 errors
+    
+    // Store the timestamp of the 401 error
+    const currentTime = new Date().getTime();
+    const lastUnauthorizedTime = localStorage.getItem('last_unauthorized_time');
+    
+    if (lastUnauthorizedTime) {
+      // If we've had a 401 error recently (within 2 seconds), then logout
+      if (currentTime - parseInt(lastUnauthorizedTime) > 2000) {
+        // Clear user data and redirect to login
+        localStorage.removeItem('user');
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('last_unauthorized_time');
+        window.location.href = '#/login';
+        throw new Error('Session expired. Please log in again.');
+      }
+    } else {
+      // First 401 error, store the timestamp
+      localStorage.setItem('last_unauthorized_time', currentTime.toString());
+      
+      // Set a timeout to clear this timestamp if no further 401s occur
+      setTimeout(() => {
+        localStorage.removeItem('last_unauthorized_time');
+      }, 5000);
+    }
+    
+    // Still throw an error so the caller knows the request failed
+    throw new Error('Unauthorized request');
   }
   
   return response;
