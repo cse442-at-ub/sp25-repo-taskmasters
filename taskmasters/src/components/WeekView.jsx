@@ -372,6 +372,7 @@ export default function WeekView() {
               Week
             </button>
             <button
+              onClick={() => navigate('/month-view')}
               className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r font-semibold hover:bg-[#9706e9]"
             >
               Month
