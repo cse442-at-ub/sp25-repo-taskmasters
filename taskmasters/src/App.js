@@ -35,11 +35,12 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/month-view" element={
+
           <ProtectedRoute>
             <MonthView />
           </ProtectedRoute>
         } />
-        <Route path="/avatar" element={
+        <Route path="/avatar-customization" element={
           <ProtectedRoute>
             <AvatarCustomization />
           </ProtectedRoute>
