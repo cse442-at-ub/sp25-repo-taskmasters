@@ -7,6 +7,7 @@ import DayView from './components/DayView';
 import WeekView from './components/WeekView';
 import MonthView from './components/MonthView';
 import AvatarCustomization from './components/AvatarCustomization';
+import Achievements from './components/Achievements';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -17,7 +18,6 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-
         {/* Protected routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
