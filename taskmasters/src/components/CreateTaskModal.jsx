@@ -57,6 +57,7 @@ export default function CreateTaskForm({ onClose }) {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Function to find free time slots in the calendar
+
   const findFreeTimeSlot = async (date, duration) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -75,6 +76,7 @@ export default function CreateTaskForm({ onClose }) {
       
       const tasks = await response.json();
       
+
       // Convert tasks to time slots (start and end minutes since midnight)
       const busySlots = tasks.map(task => {
         let startMinute = 0;
@@ -89,6 +91,7 @@ export default function CreateTaskForm({ onClose }) {
         const taskDuration = parseInt(task.task_duration) || 60;
         const endMinute = startMinute + taskDuration;
         
+
         return { start: startMinute, end: endMinute };
       });
       
@@ -277,22 +280,59 @@ export default function CreateTaskForm({ onClose }) {
     e.preventDefault();
     setIsLoading(true);
     
+    // Check if start date is provided
+    if (!formData.startDate) {
+      setError('Please select a start date before using Auto Apply');
+      return;
+    }
+    
+    setIsDurationModalOpen(true);
+  };
+
+  // Handle duration selection and proceed with auto apply
+  const handleDurationSelect = async () => {
+    setIsDurationModalOpen(false);
+    setIsLoading(true);
+    setDisplacementNotice(null); // Clear any previous notifications
+    
     try {
       const user = JSON.parse(localStorage.getItem('user'));
       if (!user) {
         throw new Error('User not logged in');
       }
 
-      // If end date is not provided, use start date
-      const updatedFormData = { ...formData };
-      if (!updatedFormData.endDate && updatedFormData.startDate) {
-        updatedFormData.endDate = updatedFormData.startDate;
-        setFormData(updatedFormData);
+      // Validate priority is set before auto-applying
+      if (!formData.priority) {
+        setError('Please select a priority level before using Auto Apply');
+        setIsLoading(false);
+        return;
       }
 
-      const startTime = new Date(`2000/01/01 ${updatedFormData.startTime}`);
-      const endTime = new Date(`2000/01/01 ${updatedFormData.endTime}`);
+      const date = new Date(formData.startDate);
+      const freeSlot = await findFreeTimeSlot(date, taskDuration, formData.priority);
+      
+      if (!freeSlot) {
+        setError('No suitable time slots found for this task with the selected priority. Please try a different priority or set the time manually.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Create a new task object with the found time slot
+      const updatedFormData = { 
+        ...formData,
+        startTime: freeSlot.startTime,
+        endTime: freeSlot.endTime 
+      };
+      
+      // If end date is not provided, use start date
+      if (!updatedFormData.endDate && updatedFormData.startDate) {
+        updatedFormData.endDate = updatedFormData.startDate;
+      }
+
+      const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
+      const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
       const duration = Math.round((endTime - startTime) / (1000 * 60));
+
 
       // If recurring is enabled but no days are selected, show an error
       if (isRecurring && selectedDays.length === 0) {
@@ -304,11 +344,12 @@ export default function CreateTaskForm({ onClose }) {
       // For recurring tasks, create a task for each selected day
       if (isRecurring && selectedDays.length > 0) {
         // Create a task for each selected day
+        setIsLoading(true);
         const createRecurringTasks = async () => {
           const startDate = new Date(formData.startDate);
-          const endDate = new Date(formData.endDate);
+          const endDate = new Date(formData.endDate || formData.startDate);
           
-          // Create a task for the initial date using the secure API utility
+          // Create a task for the initial date
           const initialResponse = await post('tasks.php', {
             ...formData,
             userId: user.id,
@@ -332,7 +373,6 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-              // Use the secure API utility for recurring tasks
               await post('tasks.php', {
                 ...formData,
                 userId: user.id,
@@ -346,11 +386,13 @@ export default function CreateTaskForm({ onClose }) {
         };
 
         await createRecurringTasks();
+        setIsLoading(false);
         onClose();
         return;
       }
 
-      // For non-recurring tasks, create a single task using the secure API utility
+      // For non-recurring tasks, create a single task
+      setIsLoading(true);
       const response = await post('tasks.php', {
         ...updatedFormData,
         userId: user.id,
@@ -358,17 +400,18 @@ export default function CreateTaskForm({ onClose }) {
         recurring: 0
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        onClose();
-      } else {
-        setError(data.message || 'Failed to create task');
+      if (!response.ok) {
+        throw new Error('Failed to create task');
       }
+      
+      setIsLoading(false);
+      onClose();
     } catch (error) {
       console.error('Error creating task:', error);
       setError(error.message || 'Failed to create task');
+
     } finally {
+
       setIsLoading(false);
     }
   }
@@ -379,11 +422,122 @@ export default function CreateTaskForm({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto relative">
         <h1 className="text-2xl font-semibold text-center mb-6">Create New Task</h1>
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded mb-4">
             {error}
+          </div>
+        )}
+        
+        {displacementNotice && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded mb-4 flex justify-between items-center">
+            <span>{displacementNotice.message}</span>
+            <button 
+              className="text-yellow-600 hover:text-yellow-800"
+              onClick={() => setDisplacementNotice(null)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        )}
+        
+        {isLoading && (
+          <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
+            <div className="text-center">
+              <div className="w-10 h-10 border-4 border-[#9706e9] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-gray-700">Auto-scheduling your task...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Duration Selection Modal */}
+        {isDurationModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+            <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-6">
+              <h2 className="text-xl font-semibold text-center mb-4">Select Task Duration</h2>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  How long should this task be?
+                </label>
+                
+                <div className="flex flex-col space-y-4">
+                  {/* Duration slider */}
+                  <div className="w-full">
+                    <input
+                      type="range"
+                      min="15"
+                      max="240"
+                      step="15"
+                      value={taskDuration}
+                      onChange={(e) => setTaskDuration(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#9706e9]"
+                    />
+                    
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>15m</span>
+                      <span>1h</span>
+                      <span>2h</span>
+                      <span>3h</span>
+                      <span>4h</span>
+                    </div>
+                  </div>
+                  
+                  {/* Duration display */}
+                  <div className="text-center text-2xl font-bold text-[#9706e9]">
+                    {taskDuration < 60 
+                      ? `${taskDuration} minutes` 
+                      : taskDuration % 60 === 0 
+                        ? `${taskDuration / 60} hour${taskDuration > 60 ? 's' : ''}` 
+                        : `${Math.floor(taskDuration / 60)}h ${taskDuration % 60}m`
+                    }
+                  </div>
+                  
+                  {/* Quick selection buttons */}
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {[30, 45, 60, 90, 120].map(duration => (
+                      <button
+                        key={duration}
+                        type="button"
+                        onClick={() => setTaskDuration(duration)}
+                        className={`px-3 py-1 rounded-full text-sm ${
+                          taskDuration === duration 
+                            ? 'bg-[#9706e9] text-white' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {duration < 60 
+                          ? `${duration}m` 
+                          : duration % 60 === 0 
+                            ? `${duration / 60}h` 
+                            : `${Math.floor(duration / 60)}h ${duration % 60}m`
+                        }
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsDurationModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDurationSelect}
+                  className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc]"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -532,7 +686,7 @@ export default function CreateTaskForm({ onClose }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+            <p className="block text-sm font-medium text-gray-700 mb-2">Priority</p>
             <div className="flex gap-6">
               {["low", "medium", "high"].map((level) => (
                 <label key={level} className="flex items-center">
