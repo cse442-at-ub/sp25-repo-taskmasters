@@ -33,9 +33,72 @@ function Dashboard() {
   const [pointsModalOpen, setPointsModalOpen] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [taskToComplete, setTaskToComplete] = useState(null);
+  const [userAvatar, setUserAvatar] = useState(null);
 
   // State for current date
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Import avatar images
+  const avatarImages = {
+    'Level1Avatar.png': require('../assets/Level1Avatar.png'),
+    'Level2Avatar.png': require('../assets/Level2Avatar.png'),
+    'Level3Avatar.png': require('../assets/Level3Avatar.png'),
+    'Level4Avatar.png': require('../assets/Level4Avatar.png'),
+    'Level5Avatar.png': require('../assets/Level5Avatar.png'),
+    'Level6Avatar.png': require('../assets/Level6Avatar.png'),
+    'Level7Avatar.png': require('../assets/Level7Avatar.png'),
+    'Level8Avatar.png': require('../assets/Level8Avatar.png'),
+    'Level9Avatar.png': require('../assets/Level9Avatar.png'),
+    'Level10Avatar.png': require('../assets/Level10Avatar.png'),
+  };
+
+  // Helper function to get avatar image
+  const getAvatarImage = (filename) => {
+    if (!filename) return null;
+    // Extract just the filename if it's a path
+    const baseName = filename.split('/').pop();
+    return avatarImages[baseName] || null;
+  };
+
+  // Fetch user avatar
+  useEffect(() => {
+    const fetchUserAvatar = async () => {
+      try {
+        const userData = JSON.parse(localStorage.getItem('user'));
+        if (userData && userData.id) {
+          const response = await get(`avatar.php?userId=${userData.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Avatar data from API:', data);
+            if (data && data.currentAvatar && data.currentAvatar.image_url) {
+              // Get the avatar image using the helper function
+              const avatarImg = getAvatarImage(data.currentAvatar.image_url);
+              console.log('Setting avatar image:', avatarImg);
+              setUserAvatar(avatarImg);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user avatar:', error);
+      }
+    };
+
+    fetchUserAvatar();
+    
+    // Add event listener to refresh avatar when window gets focus
+    // This ensures the avatar updates when returning from avatar customization page
+    const handleFocus = () => {
+      console.log('Window focused, refreshing avatar');
+      fetchUserAvatar();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    // Clean up event listener
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   // Get user data from localStorage
   useEffect(() => {
@@ -386,7 +449,7 @@ function Dashboard() {
               {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
             </a>
             <a
-              href="#/avatar"
+              href="#/avatar-customization"
               className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
               title="Avatar Customization"
             >
@@ -479,10 +542,18 @@ function Dashboard() {
             </a>
 
             <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#9706e9] to-[#e5cef2] shadow-md">
-              {/* Placeholder avatar with user's initial */}
-              <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
-                {username ? username.charAt(0).toUpperCase() : "U"}
-              </div>
+              {/* User avatar from avatar customization */}
+              {userAvatar ? (
+                <img 
+                  src={userAvatar}
+                  alt="User Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                  {username ? username.charAt(0).toUpperCase() : "U"}
+                </div>
+              )}
             </div>
           </div>
 

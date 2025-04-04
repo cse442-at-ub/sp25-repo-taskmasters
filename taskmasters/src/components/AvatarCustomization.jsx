@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { get, post } from "../utils/api";
+import config from "../config";
 import {
   LayoutDashboard,
   Calendar,
@@ -15,6 +17,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+// Import avatar images
 import avatarBackground from "../assets/AvatarBackground.png";
 import level1Avatar from "../assets/Level1Avatar.png";
 import level2Avatar from "../assets/Level2Avatar.png";
@@ -28,6 +32,22 @@ import level9Avatar from "../assets/Level9Avatar.png";
 import level10Avatar from "../assets/Level10Avatar.png";
 
 export default function AvatarCustomization() {
+  // Helper function to map image filenames to imported images
+  const getAvatarImage = (filename) => {
+    switch (filename) {
+      case 'Level1Avatar.png': return level1Avatar;
+      case 'Level2Avatar.png': return level2Avatar;
+      case 'Level3Avatar.png': return level3Avatar;
+      case 'Level4Avatar.png': return level4Avatar;
+      case 'Level5Avatar.png': return level5Avatar;
+      case 'Level6Avatar.png': return level6Avatar;
+      case 'Level7Avatar.png': return level7Avatar;
+      case 'Level8Avatar.png': return level8Avatar;
+      case 'Level9Avatar.png': return level9Avatar;
+      case 'Level10Avatar.png': return level10Avatar;
+      default: return level1Avatar; // Default fallback
+    }
+  };
   const navigate = useNavigate();
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [previewAvatar, setPreviewAvatar] = useState(null);
@@ -35,227 +55,277 @@ export default function AvatarCustomization() {
   const [errorNotification, setErrorNotification] = useState(null);
   const [changeNotification, setChangeNotification] = useState(null);
   const [currentAvatar, setCurrentAvatar] = useState(null);
-  // Track user points - normally this would come from a backend API
-  const [userPoints, setUserPoints] = useState(10000);
-  // Track purchased avatars
+  const [userPoints, setUserPoints] = useState(0);
   const [purchasedAvatars, setPurchasedAvatars] = useState([]);
+  const [availableAvatars, setAvailableAvatars] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch avatar data from backend when component mounts
+  useEffect(() => {
+    const fetchAvatarData = async () => {
+      try {
+        setIsLoading(true);
+        const userData = JSON.parse(localStorage.getItem('user'));
+        if (!userData || !userData.id) {
+          console.error('User data not found');
+          navigate('/login');
+          return;
+        }
+
+        // First, try to get user points from dashboard API
+        try {
+          const dashboardResponse = await get('dashboard.php', { userId: userData.id });
+          const dashboardData = await dashboardResponse.json();
+          console.log('Dashboard data:', dashboardData);
+          
+          if (dashboardData && dashboardData.level && dashboardData.level.totalPoints !== undefined) {
+            const points = parseInt(dashboardData.level.totalPoints);
+            setUserPoints(points);
+            console.log('Setting user points from dashboard to:', points);
+          }
+        } catch (error) {
+          console.error('Error fetching dashboard data:', error);
+        }
+        
+        // Then get avatar data
+        const response = await get(`avatar.php?userId=${userData.id}`);
+        const data = await response.json();
+        
+        console.log('Avatar data from backend:', data);
+        
+        if (data) {
+          // Set current avatar if available
+          if (data.currentAvatar) {
+            // Get just the filename from the path
+            const filename = data.currentAvatar.image_url.split('/').pop();
+            // Use the direct import for the image
+            setCurrentAvatar({
+              id: data.currentAvatar.avatar_id,
+              name: data.currentAvatar.name,
+              image: getAvatarImage(filename),
+              isCurrentAvatar: true
+            });
+          }
+          
+          // Set purchased avatars
+          if (data.ownedAvatars) {
+            const purchasedIds = data.ownedAvatars.map(avatar => parseInt(avatar.avatar_id));
+            setPurchasedAvatars(purchasedIds);
+          }
+          
+          // Set available avatars
+          if (data.availableAvatars) {
+            setAvailableAvatars(data.availableAvatars);
+          }
+          
+          // Set user points from avatar API if available and not already set from dashboard
+          console.log('User points from avatar API:', data.totalPoints);
+          if (data.totalPoints !== undefined) {
+            const points = parseInt(data.totalPoints);
+            setUserPoints(points);
+            console.log('Setting user points from avatar API to:', points);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching avatar data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAvatarData();
+  }, [navigate]);
 
   const handleAvatarClick = (avatar) => {
-    if (avatar.isCurrentAvatar) {
-      // When clicking from current avatar section, mark it accordingly
-      setPreviewAvatar({
-        ...avatar,
-        fromCurrentAvatarSection: true,
-      });
-    } else {
-      setPreviewAvatar(avatar);
-    }
+    setPreviewAvatar(avatar);
   };
 
   const closePreview = () => {
     setPreviewAvatar(null);
   };
 
-  const handlePurchase = (avatar) => {
-    // Check if user has enough points
-    if (userPoints < avatar.price) {
-      // Show error notification
+  const handlePurchase = async (avatar) => {
+    try {
+      // Check if user has enough points
+      if (userPoints < avatar.price) {
+        setErrorNotification({
+          message: "Not enough points to purchase this avatar!",
+          details: `You need ${avatar.price - userPoints} more points.`,
+          timestamp: new Date(),
+        });
+
+        setTimeout(() => {
+          setErrorNotification(null);
+        }, 3000);
+
+        return;
+      }
+
+      const userData = JSON.parse(localStorage.getItem('user'));
+      if (!userData || !userData.id) {
+        console.error('User data not found');
+        navigate('/login');
+        return;
+      }
+
+      // Call backend API to purchase avatar
+      const response = await post('avatar.php', {
+        action: 'purchaseAvatar',
+        userId: userData.id,
+        avatarId: avatar.id
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update local state with new data from backend
+        if (result.userData) {
+          if (result.userData.totalPoints !== undefined) {
+            setUserPoints(parseInt(result.userData.totalPoints));
+          }
+          
+          if (result.userData.ownedAvatars) {
+            const purchasedIds = result.userData.ownedAvatars.map(avatar => parseInt(avatar.avatar_id));
+            setPurchasedAvatars(purchasedIds);
+          }
+          
+          if (result.userData.currentAvatar) {
+            // Get just the filename from the path
+            const filename = result.userData.currentAvatar.image_url.split('/').pop();
+            setCurrentAvatar({
+              id: result.userData.currentAvatar.avatar_id,
+              name: result.userData.currentAvatar.name,
+              image: getAvatarImage(filename),
+              isCurrentAvatar: true
+            });
+          }
+        } else {
+          setUserPoints((prevPoints) => prevPoints - avatar.price);
+          setPurchasedAvatars((prev) => [...prev, avatar.id]);
+          setCurrentAvatar(avatar);
+        }
+
+        closePreview();
+        setPurchaseNotification({
+          avatar: avatar,
+          timestamp: new Date(),
+        });
+
+        setTimeout(() => {
+          setPurchaseNotification(null);
+        }, 3000);
+      } else {
+        setErrorNotification({
+          message: result.message || "Failed to purchase avatar",
+          details: "Please try again later.",
+          timestamp: new Date(),
+        });
+
+        setTimeout(() => {
+          setErrorNotification(null);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error purchasing avatar:', error);
+      
       setErrorNotification({
-        message: "Not enough points to purchase this avatar!",
-        details: `You need ${avatar.price - userPoints} more points.`,
+        message: "Error purchasing avatar",
+        details: "Please try again later.",
         timestamp: new Date(),
       });
 
-      // Auto dismiss after 3 seconds
       setTimeout(() => {
         setErrorNotification(null);
       }, 3000);
-
-      return;
     }
-
-    // Purchase logic - deduct points
-    setUserPoints((prevPoints) => prevPoints - avatar.price);
-
-    // Add to purchased avatars
-    setPurchasedAvatars((prev) => [...prev, avatar.id]);
-
-    // Set as current avatar
-    setCurrentAvatar(avatar);
-
-    // Close the preview
-    closePreview();
-
-    // Show purchase notification
-    setPurchaseNotification({
-      avatar: avatar,
-      timestamp: new Date(),
-    });
-
-    // Auto dismiss after 3 seconds
-    setTimeout(() => {
-      setPurchaseNotification(null);
-    }, 3000);
   };
 
-  const handleSelectAvatar = (avatar) => {
-    // Set as current avatar
-    setCurrentAvatar(avatar);
-
-    // Close the preview
-    closePreview();
-
-    // Show change notification
-    setChangeNotification({
-      avatar: avatar,
-      timestamp: new Date(),
-    });
-
-    // Auto dismiss after 3 seconds
-    setTimeout(() => {
-      setChangeNotification(null);
-    }, 3000);
-  };
-
-  // Function to navigate to previous avatar
-  const navigateToPreviousAvatar = () => {
-    // If we're viewing the current avatar or a purchased avatar in the current avatar context
-    if (
-      previewAvatar.isCurrentAvatar ||
-      previewAvatar.fromCurrentAvatarSection
-    ) {
-      // Get list of ONLY purchased avatars
-      const availableAvatars = avatars.filter((avatar) =>
-        isAvatarPurchased(avatar.id)
-      );
-
-      if (availableAvatars.length === 0) {
-        return; // No purchased avatars, nothing to navigate to
+  const handleSelectAvatar = async (avatar) => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      if (!userData || !userData.id) {
+        console.error('User data not found');
+        navigate('/login');
+        return;
       }
 
-      // Find the current avatar's index in our purchased list
-      let currentIndex = -1;
-
-      if (
-        previewAvatar.fromCurrentAvatarSection ||
-        previewAvatar.isCurrentAvatar
-      ) {
-        currentIndex = availableAvatars.findIndex((avatar) =>
-          previewAvatar.id
-            ? avatar.id === previewAvatar.id
-            : currentAvatar && avatar.id === currentAvatar.id
-        );
-      }
-
-      // If avatar isn't in the purchased list or no current avatar,
-      // start from the first purchased avatar
-      const startIndex = currentIndex >= 0 ? currentIndex : 0;
-
-      // Go to previous purchased avatar or loop to the end
-      const prevIndex =
-        startIndex > 0 ? startIndex - 1 : availableAvatars.length - 1;
-      const prevAvatar = availableAvatars[prevIndex];
-
-      // Display the previous avatar with proper flag
-      setPreviewAvatar({
-        ...prevAvatar,
-        isCurrentAvatar: false,
-        fromCurrentAvatarSection: true, // Mark this as coming from current avatar section
+      // Call backend API to select avatar
+      const response = await post('avatar.php', {
+        action: 'selectAvatar',
+        userId: userData.id,
+        avatarId: avatar.id
       });
 
-      return;
-    }
+      const result = await response.json();
 
-    // Regular navigation for purchase section
-    // Find current avatar index
-    const currentIndex = avatars.findIndex(
-      (avatar) => avatar.id === previewAvatar.id
-    );
+      if (result.success) {
+          if (result.userData && result.userData.currentAvatar) {
+            // Get just the filename from the path
+            const filename = result.userData.currentAvatar.image_url.split('/').pop();
+            setCurrentAvatar({
+              id: result.userData.currentAvatar.avatar_id,
+              name: result.userData.currentAvatar.name,
+              image: getAvatarImage(filename),
+              isCurrentAvatar: true
+            });
+        } else {
+          setCurrentAvatar(avatar);
+        }
 
-    // If found, show previous avatar or loop to the end
-    if (currentIndex > 0) {
-      setPreviewAvatar(avatars[currentIndex - 1]);
-    } else {
-      // If at the first avatar, loop to the last one
-      setPreviewAvatar(avatars[avatars.length - 1]);
-    }
-  };
+        closePreview();
+        setChangeNotification({
+          avatar: avatar,
+          timestamp: new Date(),
+        });
 
-  // Function to navigate to next avatar
-  const navigateToNextAvatar = () => {
-    // If we're viewing the current avatar or a purchased avatar in the current avatar context
-    if (
-      previewAvatar.isCurrentAvatar ||
-      previewAvatar.fromCurrentAvatarSection
-    ) {
-      // Get list of ONLY purchased avatars
-      const availableAvatars = avatars.filter((avatar) =>
-        isAvatarPurchased(avatar.id)
-      );
+        setTimeout(() => {
+          setChangeNotification(null);
+        }, 3000);
+      } else {
+        setErrorNotification({
+          message: result.message || "Failed to select avatar",
+          details: "Please try again later.",
+          timestamp: new Date(),
+        });
 
-      if (availableAvatars.length === 0) {
-        return; // No purchased avatars, nothing to navigate to
+        setTimeout(() => {
+          setErrorNotification(null);
+        }, 3000);
       }
-
-      // Find the current avatar's index in our purchased list
-      let currentIndex = -1;
-
-      if (
-        previewAvatar.fromCurrentAvatarSection ||
-        previewAvatar.isCurrentAvatar
-      ) {
-        currentIndex = availableAvatars.findIndex((avatar) =>
-          previewAvatar.id
-            ? avatar.id === previewAvatar.id
-            : currentAvatar && avatar.id === currentAvatar.id
-        );
-      }
-
-      // If avatar isn't in the purchased list or no current avatar,
-      // start from the first purchased avatar
-      const startIndex = currentIndex >= 0 ? currentIndex : 0;
-
-      // Go to next purchased avatar or loop to the beginning
-      const nextIndex =
-        startIndex < availableAvatars.length - 1 ? startIndex + 1 : 0;
-      const nextAvatar = availableAvatars[nextIndex];
-
-      // Display the next avatar with proper flag
-      setPreviewAvatar({
-        ...nextAvatar,
-        isCurrentAvatar: false,
-        fromCurrentAvatarSection: true, // Mark this as coming from current avatar section
+    } catch (error) {
+      console.error('Error selecting avatar:', error);
+      
+      setErrorNotification({
+        message: "Error selecting avatar",
+        details: "Please try again later.",
+        timestamp: new Date(),
       });
 
-      return;
-    }
-
-    // Regular navigation for purchase section
-    // Find current avatar index
-    const currentIndex = avatars.findIndex(
-      (avatar) => avatar.id === previewAvatar.id
-    );
-
-    // If found, show next avatar or loop to the beginning
-    if (currentIndex !== -1 && currentIndex < avatars.length - 1) {
-      setPreviewAvatar(avatars[currentIndex + 1]);
-    } else {
-      // If at the first avatar, loop to the first one
-      setPreviewAvatar(avatars[0]);
+      setTimeout(() => {
+        setErrorNotification(null);
+      }, 3000);
     }
   };
 
-  // Clean up notification when component unmounts
-  useEffect(() => {
-    return () => {
-      setPurchaseNotification(null);
-      setErrorNotification(null);
-      setChangeNotification(null);
+  // Map backend avatar data to frontend format
+  const avatars = availableAvatars.map(avatar => {
+    // Use the direct import for the image
+    const imageUrl = avatar.image_url;
+    // Remove any path prefixes to get just the filename
+    const filename = imageUrl.split('/').pop();
+    
+    return {
+      id: parseInt(avatar.avatar_id),
+      price: avatar.cost,
+      name: avatar.name,
+      image: getAvatarImage(filename), // Use the helper function to get the imported image
+      imageUrl: filename,
+      isOwned: avatar.is_owned
     };
-  }, []);
+  });
 
-  // Avatar data with ascending point prices
-  const avatars = [
+  // Use backend avatars if available, otherwise use static avatars
+  const displayAvatars = avatars.length > 0 ? avatars : [
     { id: 1, price: 100, name: "Novice Explorer", image: level1Avatar },
     { id: 2, price: 300, name: "Task Apprentice", image: level2Avatar },
     { id: 3, price: 500, name: "Productivity Adept", image: level3Avatar },
@@ -275,65 +345,48 @@ export default function AvatarCustomization() {
 
   // Function to check if avatar is already purchased
   const isAvatarPurchased = (avatarId) => {
-    return purchasedAvatars.includes(avatarId);
+    if (purchasedAvatars.includes(avatarId)) {
+      return true;
+    }
+    
+    const avatar = displayAvatars.find(a => a.id === avatarId);
+    return avatar && avatar.isOwned;
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-black">
+        <div className="text-white text-xl">Loading avatar data...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full">
-      {/* Purchase Success Notification */}
+      {/* Notifications */}
       {purchaseNotification && (
-        <div className="fixed top-4 right-4 z-50 max-w-md animate-fade-in">
-          <div className="flex items-center gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md bg-green-500 bg-opacity-90 border border-green-600">
-            <div className="flex-shrink-0 bg-white bg-opacity-90 rounded-full p-1">
-              <Check className="text-green-500" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-bold">
-                Avatar successfully purchased!
-              </p>
-              <p className="text-white text-sm opacity-90">
-                You've acquired {purchaseNotification.avatar.name} for{" "}
-                {purchaseNotification.avatar.price} points.
-              </p>
-            </div>
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className="bg-green-500 text-white p-4 rounded-lg shadow-lg">
+            <p className="font-bold">Avatar successfully purchased!</p>
+            <p>You've acquired {purchaseNotification.avatar.name} for {purchaseNotification.avatar.price} points.</p>
           </div>
         </div>
       )}
 
-      {/* Avatar Change Notification */}
       {changeNotification && (
-        <div className="fixed top-4 right-4 z-50 max-w-md animate-fade-in">
-          <div className="flex items-center gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md bg-blue-500 bg-opacity-90 border border-blue-600">
-            <div className="flex-shrink-0 bg-white bg-opacity-90 rounded-full p-1">
-              <Check className="text-blue-500" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-bold">
-                Avatar successfully changed!
-              </p>
-              <p className="text-white text-sm opacity-90">
-                You're now using {changeNotification.avatar.name}.
-              </p>
-            </div>
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className="bg-blue-500 text-white p-4 rounded-lg shadow-lg">
+            <p className="font-bold">Avatar successfully changed!</p>
+            <p>You're now using {changeNotification.avatar.name}.</p>
           </div>
         </div>
       )}
 
-      {/* Error Notification */}
       {errorNotification && (
-        <div className="fixed top-4 right-4 z-50 max-w-md animate-fade-in">
-          <div className="flex items-center gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md bg-red-500 bg-opacity-90 border border-red-600">
-            <div className="flex-shrink-0 bg-white bg-opacity-90 rounded-full p-1">
-              <AlertCircle className="text-red-500" size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-bold">
-                {errorNotification.message}
-              </p>
-              <p className="text-white text-sm opacity-90">
-                {errorNotification.details}
-              </p>
-            </div>
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg">
+            <p className="font-bold">{errorNotification.message}</p>
+            <p>{errorNotification.details}</p>
           </div>
         </div>
       )}
@@ -385,12 +438,12 @@ export default function AvatarCustomization() {
               {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
             </a>
             <a
-              href="#/avatar"
+              href="#/avatar-customization"
               className="flex items-center gap-3 px-4 py-3 bg-[#9706e9] text-white rounded-lg transition-all duration-200"
-              title="Avatar"
+              title="Avatar Customization"
             >
               <User size={20} />
-              {!isNavbarCollapsed && <span className="text-lg">Avatar</span>}
+              {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
             </a>
             <a
               href="#/achievements"
@@ -431,7 +484,7 @@ export default function AvatarCustomization() {
       >
         {/* Header */}
         <div className="p-6 flex justify-between items-center">
-          <h1 className="text-5xl font-bold">Avatars</h1>
+          <h1 className="text-5xl font-bold">Avatar Customization</h1>
           <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
             <span className="font-mono font-bold text-white">
               {userPoints}pts
@@ -439,23 +492,15 @@ export default function AvatarCustomization() {
           </div>
         </div>
 
-        {/* Changed layout to better fit 10 avatars */}
+        {/* Avatar Grid */}
         <div className="px-6 grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8 pb-20">
-          {/* Current Avatar - Updated to show placeholder when no avatar selected */}
-          <div className="rounded-lg p-6 backdrop-blur-sm">
+          {/* Current Avatar */}
+          <div className="rounded-lg p-6 backdrop-blur-sm bg-black bg-opacity-30">
             <h2 className="text-2xl font-bold mb-6">Current avatar</h2>
             <div className="flex justify-center">
               <div
                 className="w-64 h-64 rounded-full bg-[#330033] p-2 overflow-hidden border-4 border-[#9706e9] shadow-lg shadow-purple-900/50 cursor-pointer hover:border-white transition-all duration-200"
-                onClick={() =>
-                  handleAvatarClick({
-                    name: currentAvatar
-                      ? currentAvatar.name
-                      : "No Avatar Selected",
-                    image: currentAvatar ? currentAvatar.image : null,
-                    isCurrentAvatar: true,
-                  })
-                }
+                onClick={() => currentAvatar && handleAvatarClick(currentAvatar)}
               >
                 {currentAvatar ? (
                   <img
@@ -477,11 +522,11 @@ export default function AvatarCustomization() {
             </div>
           </div>
 
-          {/* Purchase Avatar */}
-          <div className="rounded-lg p-6 backdrop-blur-sm">
+          {/* Available Avatars */}
+          <div className="rounded-lg p-6 backdrop-blur-sm bg-black bg-opacity-30">
             <h2 className="text-2xl font-bold mb-6">Purchase avatar</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {avatars.map((avatar) => {
+              {displayAvatars.map((avatar) => {
                 const hasEnoughPoints = canPurchaseAvatar(avatar);
                 const isOwned = currentAvatar && currentAvatar.id === avatar.id;
                 const isPurchased = isAvatarPurchased(avatar.id);
@@ -489,21 +534,19 @@ export default function AvatarCustomization() {
                 return (
                   <div
                     key={avatar.id}
-                    className={`relative group ${isOwned ? "opacity-60" : ""}`}
+                    className={`relative ${isOwned ? "opacity-60" : ""}`}
                   >
-                    {/* Avatar Image - Clicking anywhere on this opens preview */}
                     <div
-                      className={`cursor-pointer w-full h-36 relative ${
+                      className={`cursor-pointer w-full h-32 relative ${
                         !hasEnoughPoints && !isPurchased ? "opacity-60" : ""
                       }`}
                       onClick={() => handleAvatarClick(avatar)}
                     >
                       <img
                         src={avatar.image}
-                        alt={`${avatar.name}`}
-                        className="w-full h-full object-cover rounded-md transition-transform duration-200 group-hover:scale-105"
+                        alt={avatar.name}
+                        className="w-full h-full object-cover rounded-md"
                       />
-                      {/* Price Tag */}
                       <div
                         className={`absolute bottom-0 left-0 right-0 ${
                           isPurchased
@@ -522,158 +565,81 @@ export default function AvatarCustomization() {
                         </span>
                       </div>
                     </div>
-
-                    {/* Purchase/Select Button Overlay - Visual only */}
-                    {!isOwned && (
-                      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
-                        <div
-                          className={`${
-                            isPurchased
-                              ? "bg-blue-500"
-                              : hasEnoughPoints
-                              ? "bg-[#9706e9]"
-                              : "bg-gray-600"
-                          } text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg`}
-                        >
-                          {isPurchased
-                            ? "Select Avatar"
-                            : hasEnoughPoints
-                            ? `Purchase for ${avatar.price}pts`
-                            : `Need ${avatar.price - userPoints} more pts`}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Level Progress Bar */}
-        <div
-          className="fixed bottom-0 left-0 right-0 p-4"
-          style={{ marginLeft: isNavbarCollapsed ? "4rem" : "16rem" }}
-        >
-          <div className="relative h-10 bg-black bg-opacity-30 rounded-full overflow-hidden">
-            <div className="absolute top-0 left-0 bottom-0 w-1/2 bg-[#9706e9] rounded-l-full"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="font-bold text-white">Level 1</span>
+      {/* Avatar Preview Modal */}
+      {previewAvatar && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 rounded-lg max-w-lg w-full p-6 text-white">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">{previewAvatar.name}</h2>
+              <button
+                className="text-white hover:text-purple-500"
+                onClick={closePreview}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex justify-center my-6">
+              <img
+                src={previewAvatar.image}
+                alt={previewAvatar.name}
+                className="max-w-full max-h-64 object-contain rounded-lg border-4 border-purple-700"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-between items-center">
+              <span
+                className={`${
+                  isAvatarPurchased(previewAvatar.id)
+                    ? "bg-blue-500"
+                    : canPurchaseAvatar(previewAvatar)
+                    ? "bg-purple-700"
+                    : "bg-gray-600"
+                } text-white px-4 py-2 rounded-full font-bold`}
+              >
+                {isAvatarPurchased(previewAvatar.id)
+                  ? "Owned Avatar"
+                  : `${previewAvatar.price} pts`}
+              </span>
+
+              {currentAvatar && currentAvatar.id === previewAvatar.id ? (
+                <span className="bg-green-600 text-white px-4 py-2 rounded-full font-bold">
+                  Current Avatar
+                </span>
+              ) : isAvatarPurchased(previewAvatar.id) ? (
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-bold"
+                  onClick={() => handleSelectAvatar(previewAvatar)}
+                >
+                  Select Avatar
+                </button>
+              ) : (
+                <button
+                  className={`${
+                    canPurchaseAvatar(previewAvatar)
+                      ? "bg-purple-700 hover:bg-purple-800"
+                      : "bg-gray-600 cursor-not-allowed"
+                  } text-white px-6 py-2 rounded-full font-bold`}
+                  onClick={() => handlePurchase(previewAvatar)}
+                  disabled={!canPurchaseAvatar(previewAvatar)}
+                >
+                  {canPurchaseAvatar(previewAvatar)
+                    ? "Purchase Avatar"
+                    : `Need ${previewAvatar.price - userPoints} more pts`}
+                </button>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Avatar Preview Modal */}
-        {previewAvatar && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-2xl bg-black bg-opacity-90 rounded-lg shadow-xl border-2 border-[#9706e9] p-6 max-h-[90vh] overflow-y-auto text-white">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">{previewAvatar.name}</h2>
-                <button
-                  className="text-white hover:text-[#9706e9] transition-colors duration-200"
-                  onClick={closePreview}
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="flex justify-center items-center my-6 relative">
-                {/* Show navigation buttons for both current avatar section and purchase section */}
-                {(previewAvatar.isCurrentAvatar &&
-                  purchasedAvatars.length > 0) ||
-                !previewAvatar.isCurrentAvatar ? (
-                  <button
-                    className="absolute left-0 bg-black bg-opacity-70 p-2 rounded-full border-2 border-[#9706e9] text-white hover:bg-[#9706e9] transition-all duration-200 z-10 transform -translate-x-1/2"
-                    onClick={navigateToPreviousAvatar}
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                ) : null}
-
-                {previewAvatar.image ? (
-                  <img
-                    src={previewAvatar.image}
-                    alt={previewAvatar.name}
-                    className="max-w-full max-h-[60vh] object-contain rounded-lg border-4 border-[#9706e9] shadow-xl"
-                  />
-                ) : (
-                  <div className="w-[60vh] h-[60vh] rounded-lg border-4 border-[#9706e9] shadow-xl flex items-center justify-center bg-gray-800">
-                    <User size={120} className="text-gray-400" />
-                  </div>
-                )}
-
-                {/* Show navigation buttons for both current avatar section and purchase section */}
-                {(previewAvatar.isCurrentAvatar &&
-                  purchasedAvatars.length > 0) ||
-                !previewAvatar.isCurrentAvatar ? (
-                  <button
-                    className="absolute right-0 bg-black bg-opacity-70 p-2 rounded-full border-2 border-[#9706e9] text-white hover:bg-[#9706e9] transition-all duration-200 z-10 transform translate-x-1/2"
-                    onClick={navigateToNextAvatar}
-                  >
-                    <ChevronRight size={24} />
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                {previewAvatar.isCurrentAvatar && currentAvatar ? (
-                  <span className="bg-green-600 text-white px-4 py-2 rounded-full font-bold inline-block">
-                    Current Avatar
-                  </span>
-                ) : previewAvatar.isCurrentAvatar ? (
-                  <span className="bg-gray-600 text-white px-4 py-2 rounded-full font-bold inline-block">
-                    No Avatar Selected
-                  </span>
-                ) : (
-                  <>
-                    <span
-                      className={`${
-                        isAvatarPurchased(previewAvatar.id)
-                          ? "bg-blue-500"
-                          : canPurchaseAvatar(previewAvatar)
-                          ? "bg-[#9706e9]"
-                          : "bg-gray-600"
-                      } text-white px-4 py-2 rounded-full font-bold inline-block`}
-                    >
-                      {isAvatarPurchased(previewAvatar.id)
-                        ? "Owned Avatar"
-                        : `${previewAvatar.price} pts`}
-                    </span>
-
-                    {/* Check if current avatar - can't repurchase */}
-                    {currentAvatar && currentAvatar.id === previewAvatar.id ? (
-                      <span className="bg-green-600 text-white px-4 py-2 rounded-full font-bold inline-block">
-                        Current Avatar
-                      </span>
-                    ) : isAvatarPurchased(previewAvatar.id) ? (
-                      <button
-                        className="bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-300"
-                        onClick={() => handleSelectAvatar(previewAvatar)}
-                      >
-                        Select Avatar
-                      </button>
-                    ) : (
-                      <button
-                        className={`${
-                          canPurchaseAvatar(previewAvatar)
-                            ? "bg-gradient-to-r from-purple-700 to-[#9706e9] hover:from-purple-800 hover:to-purple-600 transform hover:scale-105"
-                            : "bg-gray-600 cursor-not-allowed"
-                        } text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg transition-all duration-300`}
-                        onClick={() => handlePurchase(previewAvatar)}
-                        disabled={!canPurchaseAvatar(previewAvatar)}
-                      >
-                        {canPurchaseAvatar(previewAvatar)
-                          ? "Purchase Avatar"
-                          : `Need ${previewAvatar.price - userPoints} more pts`}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

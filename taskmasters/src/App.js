@@ -5,6 +5,7 @@ import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import DayView from './components/DayView';
 import WeekView from './components/WeekView';
+import AvatarCustomization from './components/AvatarCustomization';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -32,9 +33,9 @@ function App() {
             <WeekView />
           </ProtectedRoute>
         } />
-        <Route path="/avatar" element={
+        <Route path="/avatar-customization" element={
           <ProtectedRoute>
-            <div>Avatar Customization Coming Soon</div>
+            <AvatarCustomization />
           </ProtectedRoute>
         } />
         <Route path="/achievements" element={
