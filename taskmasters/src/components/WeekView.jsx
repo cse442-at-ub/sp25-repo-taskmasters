@@ -430,7 +430,7 @@ export default function WeekView() {
                         }}
                       >
                         <div className="font-medium text-xs md:text-sm truncate">
-                          {task.title}
+                          {task.title || "Untitled Task"}
                         </div>
                         <div className="text-[10px] md:text-xs text-gray-600 truncate">
                           {task.category}

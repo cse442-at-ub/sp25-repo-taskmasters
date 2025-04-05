@@ -815,14 +815,19 @@ function Dashboard() {
       {selectedTaskId && (
         <TaskDetailView
           taskId={selectedTaskId}
-          selectedDate={new Date().toISOString().split("T")[0]}
+          selectedDate={(() => {
+            // Find the task with the matching ID
+            const task = [...tasks, ...completedTasks].find(t => t.id === selectedTaskId);
+            // Use the task's date if available, otherwise use current date
+            return task && task.date ? task.date : new Date().toISOString().split("T")[0];
+          })()}
           onClose={() => setSelectedTaskId(null)}
-          onTaskUpdated={(updatedTask) => {
-            setTasks(
-              tasks.map((task) =>
-                task.id === updatedTask.id ? updatedTask : task
-              )
-            );
+          onTaskUpdated={() => {
+            // Refresh dashboard data to show updated tasks
+            const userData = JSON.parse(localStorage.getItem('user'));
+            if (userData && userData.id) {
+              fetchDashboardData(userData.id);
+            }
           }}
         />
       )}

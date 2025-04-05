@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import TaskDetailsModal from "./TaskDetailsModal"
 import CreateTaskForm from "./CreateTaskModal"
-import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle, Menu } from "lucide-react"
 import config from "../config"
 import { useNavigate } from "react-router-dom"
 
@@ -15,7 +15,13 @@ export default function MonthView() {
   const [error, setError] = useState("")
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [viewMode, setViewMode] = useState("Month")
+  const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false)
   const navigate = useNavigate()
+  
+  // Toggle sidebar collapse state
+  const toggleSidebar = () => {
+    setIsNavbarCollapsed(!isNavbarCollapsed)
+  }
 
   // Get the first day of the month
   const getFirstDayOfMonth = (date) => {
@@ -304,43 +310,63 @@ export default function MonthView() {
   return (
     <React.Fragment>
       <div className="flex h-screen w-full">
-        {/* Sidebar - Identical to WeekView.jsx */}
-        <div className="min-h-screen bg-white shadow-lg flex flex-col w-64 transition-all duration-300">
+        {/* Sidebar */}
+        <div className={`bg-white shadow-lg flex flex-col ${
+          isNavbarCollapsed ? "w-full md:w-16" : "w-full md:w-64"
+        } transition-all duration-300 min-h-[80px] md:min-h-screen`}>
           {/* Logo Section */}
-          <div className="p-6 bg-[#9706e9] text-white">
-            <h1 className="text-2xl font-bold tracking-wider">TaskMasters</h1>
+          <div className="p-4 md:p-6 bg-[#9706e9] text-white flex justify-between items-center">
+            {!isNavbarCollapsed && (
+              <h1 className="text-xl md:text-2xl font-bold tracking-wider">
+                TaskMasters
+              </h1>
+            )}
+            <button
+              onClick={toggleSidebar}
+              className="text-white hover:bg-purple-800 p-1 rounded-md transition-all duration-200"
+            >
+              <Menu size={20} />
+            </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4">
-            <div className="space-y-2">
+          <nav className={`${
+            isNavbarCollapsed
+              ? "hidden md:flex md:flex-col md:items-center"
+              : "block"
+          } flex-1 p-4`}>
+            <div className="flex flex-col md:space-y-2">
               <a
                 onClick={() => navigate('/dashboard')}
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200 cursor-pointer"
+                title="Dashboard"
               >
                 <LayoutDashboard size={20} />
-                <span className="text-lg">Dashboard</span>
+                {!isNavbarCollapsed && <span className="text-lg">Dashboard</span>}
               </a>
               <a
                 onClick={() => navigate('/calendar')}
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200 cursor-pointer"
+                title="Calendar"
               >
                 <Calendar size={20} />
-                <span className="text-lg">Calendar</span>
+                {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
               </a>
               <a
-                href="#/avatar"
+                href="#/avatar-customization"
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Avatar Customization"
               >
                 <User size={20} />
-                <span className="text-lg">Avatar</span>
+                {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
               </a>
               <a
                 href="#/achievements"
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Achievements"
               >
                 <Trophy size={20} />
-                <span className="text-lg">Achievements</span>
+                {!isNavbarCollapsed && <span className="text-lg">Achievements</span>}
               </a>
             </div>
           </nav>
@@ -350,9 +376,10 @@ export default function MonthView() {
             <a
               href="#/login"
               className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-red-100 hover:text-red-500 rounded-lg transition-all duration-200"
+              title="Logout"
             >
               <LogOut size={20} />
-              <span className="text-lg">Logout</span>
+              {!isNavbarCollapsed && <span className="text-lg">Logout</span>}
             </a>
           </div>
         </div>
@@ -491,4 +518,3 @@ export default function MonthView() {
     </React.Fragment>
   )
 }
-

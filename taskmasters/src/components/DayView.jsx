@@ -39,8 +39,29 @@ export default function DayView() {
 
       if (response.ok) {
         const formattedTasks = data.map(task => {
-          const [hours, minutes] = task.formatted_time.split(':');
-          const minutesSinceMidnight = parseInt(hours) * 60 + parseInt(minutes);
+          // Parse time, handling both 12-hour and 24-hour formats
+          const formattedTime = task.formatted_time || "00:00:00";
+          
+          // Check if time is in 12-hour format (contains AM/PM)
+          let hours, minutes, minutesSinceMidnight;
+          
+          if (formattedTime.includes('AM') || formattedTime.includes('PM')) {
+            // Parse 12-hour format (e.g., "1:00 PM")
+            const [time, period] = formattedTime.split(' ');
+            [hours, minutes] = time.split(':').map(Number);
+            
+            // Convert to 24-hour format
+            if (period === 'PM' && hours !== 12) {
+              hours += 12;
+            } else if (period === 'AM' && hours === 12) {
+              hours = 0;
+            }
+          } else {
+            // Parse 24-hour format (e.g., "13:00")
+            [hours, minutes] = formattedTime.split(':').map(Number);
+          }
+          
+          minutesSinceMidnight = hours * 60 + minutes;
           
           return {
             id: task.task_id,
@@ -281,16 +302,35 @@ export default function DayView() {
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`${getTaskColor(task.priority)} absolute left-0 right-4 rounded-lg p-4 flex flex-col hover:shadow-md transition-all duration-200 cursor-pointer`}
+                  className={`${getTaskColor(task.priority)} absolute left-0 right-4 rounded-lg p-2 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden`}
                   style={{
                     top: `${(task.startMinute / 1440) * 100}%`,
                     height: `${(task.duration / 1440) * 100}%`,
-                    minHeight: '2rem'
+                    minHeight: '2.5rem'
                   }}
                   onClick={() => setSelectedTaskId(task.id)}
                 >
-                  <div className="font-medium truncate">{task.title}</div>
-                  <div className="text-right text-gray-600 text-sm bg-white/30 px-2 py-1 rounded-full truncate mt-1">{task.category}</div>
+                  {/* For short tasks (30 min or less), show a more compact layout */}
+                  {task.duration <= 30 ? (
+                    <div className="flex justify-between items-center h-full">
+                      <div className="font-medium text-sm truncate flex-1">{task.title || "Untitled Task"}</div>
+                      {task.category && (
+                        <div className="text-right text-gray-600 text-xs bg-white/30 px-1 py-0.5 rounded-full ml-1 whitespace-nowrap">
+                          {task.category}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // For longer tasks, keep the stacked layout but with better spacing
+                    <div className="flex flex-col h-full">
+                      <div className="font-medium truncate">{task.title || "Untitled Task"}</div>
+                      {task.category && (
+                        <div className="text-right text-gray-600 text-sm bg-white/30 px-2 py-1 rounded-full truncate mt-1">
+                          {task.category}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
