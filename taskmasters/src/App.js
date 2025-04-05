@@ -18,7 +18,6 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
         {/* Protected routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -36,6 +35,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/month-view" element={
+
           <ProtectedRoute>
             <MonthView />
           </ProtectedRoute>
@@ -55,10 +55,10 @@ function App() {
             <div>Create Task Coming Soon</div>
           </ProtectedRoute>
         } />
-        
+
         {/* Default route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        
+
         {/* Catch all route - redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -67,3 +67,4 @@ function App() {
 }
 
 export default App;
+

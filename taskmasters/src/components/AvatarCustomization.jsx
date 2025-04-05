@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { get, post } from "../utils/api";
 import config from "../config";
+
 import {
   LayoutDashboard,
   Calendar,
@@ -17,8 +18,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-// Import avatar images
 import avatarBackground from "../assets/AvatarBackground.png";
 import level1Avatar from "../assets/Level1Avatar.png";
 import level2Avatar from "../assets/Level2Avatar.png";
@@ -32,7 +31,7 @@ import level9Avatar from "../assets/Level9Avatar.png";
 import level10Avatar from "../assets/Level10Avatar.png";
 
 export default function AvatarCustomization() {
-  // Helper function to map image filenames to imported images
+
   const getAvatarImage = (filename) => {
     switch (filename) {
       case 'Level1Avatar.png': return level1Avatar;
@@ -168,6 +167,7 @@ export default function AvatarCustomization() {
   const closePreview = () => {
     setPreviewAvatar(null);
   };
+
 
   const handlePurchase = async (avatar) => {
     try {
@@ -400,6 +400,7 @@ export default function AvatarCustomization() {
 
   // Function to check if avatar is already purchased
   const isAvatarPurchased = (avatarId) => {
+
     if (purchasedAvatars.includes(avatarId)) {
       return true;
     }
@@ -437,11 +438,13 @@ export default function AvatarCustomization() {
         </div>
       )}
 
+
       {errorNotification && (
         <div className="fixed top-4 right-4 z-50 max-w-md">
           <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg">
             <p className="font-bold">{errorNotification.message}</p>
             <p>{errorNotification.details}</p>
+
           </div>
         </div>
       )}
@@ -493,6 +496,7 @@ export default function AvatarCustomization() {
               {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
             </a>
             <a
+
               href="#/avatar-customization"
               className="flex items-center gap-3 px-4 py-3 bg-[#9706e9] text-white rounded-lg transition-all duration-200"
               title="Avatar Customization"
@@ -539,6 +543,7 @@ export default function AvatarCustomization() {
       >
         {/* Header */}
         <div className="p-6 flex justify-between items-center">
+
           <h1 className="text-5xl font-bold">Avatar Customization</h1>
           <div className="flex items-center gap-4">
             <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
@@ -554,6 +559,7 @@ export default function AvatarCustomization() {
           </div>
         </div>
 
+
         {/* Avatar Grid */}
         <div className="px-6 grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8 pb-20">
           {/* Current Avatar */}
@@ -562,6 +568,7 @@ export default function AvatarCustomization() {
             <div className="flex justify-center">
               <div
                 className="w-64 h-64 rounded-full bg-[#330033] p-2 overflow-hidden border-4 border-[#9706e9] shadow-lg shadow-purple-900/50 cursor-pointer hover:border-white transition-all duration-200"
+
                 onClick={() => currentAvatar && handleAvatarClick(currentAvatar)}
               >
                 {currentAvatar ? (
@@ -584,6 +591,7 @@ export default function AvatarCustomization() {
             </div>
           </div>
 
+
           {/* Available Avatars */}
           <div className="rounded-lg p-6 backdrop-blur-sm bg-black bg-opacity-30">
             <h2 className="text-2xl font-bold mb-6">Purchase avatar</h2>
@@ -596,6 +604,7 @@ export default function AvatarCustomization() {
                 return (
                   <div
                     key={avatar.id}
+
                     className={`relative ${isOwned ? "opacity-60" : ""}`}
                   >
                     <div
@@ -606,6 +615,7 @@ export default function AvatarCustomization() {
                     >
                       <img
                         src={avatar.image}
+
                         alt={avatar.name}
                         className="w-full h-full object-cover rounded-md"
                       />
@@ -627,6 +637,7 @@ export default function AvatarCustomization() {
                         </span>
                       </div>
                     </div>
+
                   </div>
                 );
               })}
