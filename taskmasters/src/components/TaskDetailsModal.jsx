@@ -90,13 +90,35 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
         if (taskData) {
           setTask(taskData);
           
-          // Extract time from the formatted_time field
+          // Extract time from the formatted_time field, handling both 12-hour and 24-hour formats
           const formattedTime = taskData.formatted_time || "00:00:00";
-          const [hours, minutes] = formattedTime.split(':');
-          const startTime = `${hours}:${minutes}`;
+          
+          // Check if time is in 12-hour format (contains AM/PM)
+          let hours, minutes, startMinutes;
+          
+          if (formattedTime.includes('AM') || formattedTime.includes('PM')) {
+            // Parse 12-hour format (e.g., "1:00 PM")
+            const [time, period] = formattedTime.split(' ');
+            [hours, minutes] = time.split(':').map(Number);
+            
+            // Convert to 24-hour format
+            if (period === 'PM' && hours !== 12) {
+              hours += 12;
+            } else if (period === 'AM' && hours === 12) {
+              hours = 0;
+            }
+            
+            startMinutes = hours * 60 + minutes;
+          } else {
+            // Parse 24-hour format (e.g., "13:00")
+            [hours, minutes] = formattedTime.split(':').map(Number);
+            startMinutes = hours * 60 + minutes;
+          }
+          
+          // Format for input fields (needs to be in 24-hour format)
+          const startTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
           
           // Calculate end time based on duration
-          const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
           const endMinutes = startMinutes + parseInt(taskData.task_duration);
           const endHours = Math.floor(endMinutes / 60);
           const endMins = endMinutes % 60;
@@ -116,14 +138,14 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
             }
             
             setFormData({
-              taskName: taskData.task_Title,
-              category: taskData.task_tags,
-              description: taskData.task_description,
+              taskName: taskData.task_Title || "Untitled Task",
+              category: taskData.task_tags || "",
+              description: taskData.task_description || "",
               startDate: taskData.task_startDate,
               endDate: taskData.task_dueDate,
               startTime: startTime,
               endTime: endTime,
-              priority: taskData.task_priority,
+              priority: taskData.task_priority || "medium",
               recurring: isTaskRecurring ? 1 : 0,
               recurringDays: taskData.recurringDays || ""
             });
@@ -202,25 +224,47 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
       
       // Reset form data to original task values
       const formattedTime = task.formatted_time || "00:00:00";
-      const [hours, minutes] = formattedTime.split(':');
-      const startTime = `${hours}:${minutes}`;
+      
+      // Check if time is in 12-hour format (contains AM/PM)
+      let hours, minutes, startMinutes;
+      
+      if (formattedTime.includes('AM') || formattedTime.includes('PM')) {
+        // Parse 12-hour format (e.g., "1:00 PM")
+        const [time, period] = formattedTime.split(' ');
+        [hours, minutes] = time.split(':').map(Number);
+        
+        // Convert to 24-hour format
+        if (period === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        startMinutes = hours * 60 + minutes;
+      } else {
+        // Parse 24-hour format (e.g., "13:00")
+        [hours, minutes] = formattedTime.split(':').map(Number);
+        startMinutes = hours * 60 + minutes;
+      }
+      
+      // Format for input fields (needs to be in 24-hour format)
+      const startTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
       
       // Calculate end time based on duration
-      const startMinutes = parseInt(hours) * 60 + parseInt(minutes);
       const endMinutes = startMinutes + parseInt(task.task_duration);
       const endHours = Math.floor(endMinutes / 60);
       const endMins = endMinutes % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
       
       setFormData({
-        taskName: task.task_Title,
-        category: task.task_tags,
-        description: task.task_description,
+        taskName: task.task_Title || "Untitled Task",
+        category: task.task_tags || "",
+        description: task.task_description || "",
         startDate: task.task_startDate,
         endDate: task.task_dueDate,
         startTime: startTime,
         endTime: endTime,
-        priority: task.task_priority,
+        priority: task.task_priority || "medium",
       });
       setIsEditing(false);
     } else {
