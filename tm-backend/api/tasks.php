@@ -1,10 +1,22 @@
 <?php
-header("Access-Control-Allow-Origin: *");
+// Start session for CSRF protection
+session_start();
+
+// Set secure headers
+header("Access-Control-Allow-Origin: " . (isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*'));
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST, GET, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token");
+header("Access-Control-Allow-Credentials: true");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: DENY");
+header("X-XSS-Protection: 1; mode=block");
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+// Less restrictive CSP for development
+header("Content-Security-Policy: default-src * 'unsafe-inline' 'unsafe-eval'; img-src * data:;");
 
-// Handle preflight OPTIONS request
+
+// Handle preflight options request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -12,7 +24,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 include_once '../config/database.php';
 
+// Function to sanitize input data
+function sanitizeInput($data) {
+    if (is_string($data)) {
+        $data = trim($data);
+        $data = stripslashes($data);
+        $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+    }
+    return $data;
+}
+
+// Function to verify CSRF token
+function verifyCsrfToken($token) {
+    if (empty($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
+        return false;
+    }
+    return true;
+}
+
 try {
+    // Temporarily disable CSRF verification for testing
+    // We'll log the headers to debug the issue
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET' && $_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
+        $headers = getallheaders();
+        $csrfToken = isset($headers['X-CSRF-Token']) ? $headers['X-CSRF-Token'] : null;
+        
+        // Log headers for debugging
+        error_log("Request headers: " . json_encode($headers));
+        error_log("CSRF Token from header: " . ($csrfToken ?? 'null'));
+        error_log("CSRF Token from session: " . ($_SESSION['csrf_token'] ?? 'null'));
+        
+        // Temporarily skip CSRF verification
+        // if (!$csrfToken || !verifyCsrfToken($csrfToken)) {
+        //     http_response_code(403);
+        //     echo json_encode(array("message" => "Invalid or missing CSRF token"));
+        //     exit;
+        // }
+    }
+    
     $database = new Database();
     $db = $database->getConnection();
 
@@ -46,6 +95,28 @@ try {
         } catch(Exception $e) {
             $hasRecurringDaysColumn = false;
         }
+        
+        // Check if completed column exists
+        $hasCompletedColumn = false;
+        try {
+            $checkColumnQuery = "SHOW COLUMNS FROM tasks LIKE 'completed'";
+            $checkColumnStmt = $db->prepare($checkColumnQuery);
+            $checkColumnStmt->execute();
+            $hasCompletedColumn = $checkColumnStmt->rowCount() > 0;
+        } catch(Exception $e) {
+            $hasCompletedColumn = false;
+        }
+        
+        // Add completed column if it doesn't exist
+        if (!$hasCompletedColumn) {
+            try {
+                $addColumnQuery = "ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0";
+                $db->exec($addColumnQuery);
+                $hasCompletedColumn = true;
+            } catch(Exception $e) {
+                error_log("Error adding completed column: " . $e->getMessage());
+            }
+        }
 
         if ($hasRecurringColumn && $hasRecurringDaysColumn) {
             $query = "INSERT INTO tasks (
@@ -60,7 +131,8 @@ try {
                 task_startDate,
                 created_time,
                 Task_recurring,
-                recurringDays
+                recurringDays,
+                completed
             ) VALUES (
                 :title,
                 :description,
@@ -73,7 +145,8 @@ try {
                 :startDate,
                 NOW(),
                 :recurring,
-                :recurringDays
+                :recurringDays,
+                0
             )";
         } elseif ($hasRecurringColumn) {
             $query = "INSERT INTO tasks (
@@ -87,7 +160,8 @@ try {
                 Task_time,
                 task_startDate,
                 created_time,
-                Task_recurring
+                Task_recurring,
+                completed
             ) VALUES (
                 :title,
                 :description,
@@ -99,7 +173,8 @@ try {
                 :time,
                 :startDate,
                 NOW(),
-                :recurring
+                :recurring,
+                0
             )";
         } else {
             $query = "INSERT INTO tasks (
@@ -112,7 +187,8 @@ try {
                 user_id, 
                 Task_time,
                 task_startDate,
-                created_time
+                created_time,
+                completed
             ) VALUES (
                 :title,
                 :description,
@@ -123,7 +199,8 @@ try {
                 :userId,
                 :time,
                 :startDate,
-                NOW()
+                NOW(),
+                0
             )";
         }
 

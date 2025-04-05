@@ -59,8 +59,15 @@ const LoginPage = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Store user data and CSRF token
         localStorage.setItem('user', JSON.stringify(data.user));
-                window.location.href = '#/dashboard';
+        
+        // Store CSRF token for API requests
+        if (data.csrf_token) {
+          localStorage.setItem('csrf_token', data.csrf_token);
+        }
+        
+        window.location.href = '#/dashboard';
       } else {
         setError(data.message || 'Login failed');
       }
