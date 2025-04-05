@@ -15,7 +15,8 @@ header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
 // Less restrictive CSP for development
 header("Content-Security-Policy: default-src * 'unsafe-inline' 'unsafe-eval'; img-src * data:;");
 
-// Handle preflight OPTIONS request
+
+// Handle preflight options request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
