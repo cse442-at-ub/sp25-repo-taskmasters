@@ -12,6 +12,7 @@ export default function CreateTaskForm({ onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDurationModalOpen, setIsDurationModalOpen] = useState(false);
   const [taskDuration, setTaskDuration] = useState(60); // Default 60 minutes
+  const [displacementNotice, setDisplacementNotice] = useState(null);
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -197,81 +198,65 @@ export default function CreateTaskForm({ onClose }) {
     setIsDurationModalOpen(true);
   };
 
-  
 
-  // Handle duration selection and proceed with auto apply
-  const handleDurationSelect = async () => {
-    setIsDurationModalOpen(false);
-    setIsLoading(true);
-    setDisplacementNotice(null); // Clear any previous notifications
+  // This is a placeholder declaration to avoid duplicate function error
+  // The actual implementation is below in the handleSubmit function
+
+  const navigate = useNavigate()
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) {
-        throw new Error('User not logged in');
-      }
+    // Check if start date is provided
+    if (!formData.startDate) {
+      setError('Please select a start date');
+      return;
+    }
+    
+    // If startTime and endTime are already set, directly submit the form
+    // Otherwise, open the duration modal for auto-apply
+    if (formData.startTime && formData.endTime) {
+      setIsLoading(true);
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+          throw new Error('User not logged in');
+        }
+        
+        // Calculate duration from start and end times
+        const startTime = new Date(`2000/01/01 ${formData.startTime}`);
+        const endTime = new Date(`2000/01/01 ${formData.endTime}`);
+        const duration = Math.round((endTime - startTime) / (1000 * 60));
+        
+        // If end date is not provided, use start date
+        if (!formData.endDate && formData.startDate) {
+          formData.endDate = formData.startDate;
+        }
+        
+        // For recurring tasks
+        if (isRecurring && selectedDays.length > 0) {
 
-      // Validate priority is set before auto-applying
-      if (!formData.priority) {
-        setError('Please select a priority level before using Auto Apply');
-        setIsLoading(false);
-        return;
-      }
-
-      const date = new Date(formData.startDate);
-      const freeSlot = await findFreeTimeSlot(date, taskDuration, formData.priority);
-      
-      if (!freeSlot) {
-        setError('No suitable time slots found for this task with the selected priority. Please try a different priority or set the time manually.');
-        setIsLoading(false);
-        return;
-      }
-      
-      // Create a new task object with the found time slot
-      const updatedFormData = { 
-        ...formData,
-        startTime: freeSlot.startTime,
-        endTime: freeSlot.endTime 
-      };
-      
-      // If end date is not provided, use start date
-      if (!updatedFormData.endDate && updatedFormData.startDate) {
-        updatedFormData.endDate = updatedFormData.startDate;
-      }
-
-      const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
-      const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
-      const duration = Math.round((endTime - startTime) / (1000 * 60));
-
-
-      // If recurring is enabled but no days are selected, show an error
-      if (isRecurring && selectedDays.length === 0) {
-        setError('Please select at least one day for recurring tasks');
-        setIsLoading(false);
-        return;
-      }
-
-      // For recurring tasks, create a task for each selected day
-      if (isRecurring && selectedDays.length > 0) {
-        // Create a task for each selected day
-        setIsLoading(true);
-        const createRecurringTasks = async () => {
           const startDate = new Date(formData.startDate);
           const endDate = new Date(formData.endDate || formData.startDate);
           
           // Create a task for the initial date
-          const initialResponse = await post('tasks.php', {
+
+          // Ensure taskName is not empty
+          const taskData = {
+
             ...formData,
             userId: user.id,
             duration: duration,
             recurring: 1,
-            recurringDays: selectedDays.join(',')
-          });
-
+            recurringDays: selectedDays.join(','),
+            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+          };
+          
+          const initialResponse = await post('tasks.php', taskData);
+          
           if (!initialResponse.ok) {
             throw new Error('Failed to create initial task');
           }
-
+          
           // Calculate the date range for recurring tasks
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
@@ -283,99 +268,53 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
+
               await post('tasks.php', {
                 ...formData,
                 userId: user.id,
                 duration: duration,
                 startDate: currentDate.toISOString().split('T')[0],
                 recurring: 1,
-                recurringDays: selectedDays.join(',')
+                recurringDays: selectedDays.join(','),
+                taskName: formData.taskName || "Untitled Task" // Provide default name if empty
               });
             }
           }
-        };
 
-        await createRecurringTasks();
-        setIsLoading(false);
+        } else {
+          // For non-recurring tasks
+          // Ensure taskName is not empty
+          const taskData = {
+            ...formData,
+            userId: user.id,
+            duration: duration,
+            recurring: 0,
+            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+          };
+          
+          const response = await post('tasks.php', taskData);
+          
+          if (!response.ok) {
+            throw new Error('Failed to create task');
+          }
+        }
+        
         onClose();
-        return;
+      } catch (error) {
+        console.error('Error creating task:', error);
+        setError(error.message || 'Failed to create task');
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+      // Open duration modal for auto-apply
+      setIsDurationModalOpen(true);
+    }
+  };
 
-      // For non-recurring tasks, create a single task
-      setIsLoading(true);
-      const response = await post('tasks.php', {
-        ...updatedFormData,
-        userId: user.id,
-        duration: duration,
-        recurring: 0
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create task');
-      }
-      
-      setIsLoading(false);
-      onClose();
-    } catch (error) {
-      console.error('Error creating task:', error);
-      setError(error.message || 'Failed to create task');
-
-    } finally {
-
-      setIsLoading(false);
-    }
-  }
-
-  const handleCancel = () => {
-    onClose()
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate that end time is not earlier than start time
-    if (formData.startTime && formData.endTime) {
-      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
-      
-      if (endTimeObj <= startTimeObj) {
-        setError('End time must be later than start time');
-        return;
-      }
-    }
-    
-    // Validate required fields
-    if (!formData.taskName) {
-      setError('Task name is required');
-      return;
-    }
-    
-    if (!formData.startDate) {
-      setError('Start date is required');
-      return;
-    }
-    
-    if (!formData.startTime) {
-      setError('Start time is required');
-      return;
-    }
-    
-    if (!formData.endTime) {
-      setError('End time is required');
-      return;
-    }
-    
-    if (!formData.priority) {
-      setError('Priority is required');
-      return;
-    }
-    
-    // If recurring is enabled but no days are selected, show an error
-    if (isRecurring && selectedDays.length === 0) {
-      setError('Please select at least one day for recurring tasks');
-      return;
-    }
-    
+  // Handle duration selection and proceed with auto apply
+  const handleDurationSelect = async () => {
+    setIsDurationModalOpen(false);
     setIsLoading(true);
     
     try {
@@ -401,14 +340,20 @@ export default function CreateTaskForm({ onClose }) {
           const endDate = new Date(formData.endDate || formData.startDate);
           
           // Create a task for the initial date
-          const initialResponse = await post('tasks.php', {
+          // Ensure taskName is not empty
+          const taskData = {
             ...formData,
             userId: user.id,
             duration: duration,
             recurring: 1,
-            recurringDays: selectedDays.join(',')
-          });
+
+            recurringDays: selectedDays.join(','),
+            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+          };
           
+          const initialResponse = await post('tasks.php', taskData);
+
+
           if (!initialResponse.ok) {
             throw new Error('Failed to create initial task');
           }
@@ -424,13 +369,15 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
+              // Ensure taskName is not empty for recurring tasks too
               await post('tasks.php', {
                 ...formData,
                 userId: user.id,
                 duration: duration,
                 startDate: currentDate.toISOString().split('T')[0],
                 recurring: 1,
-                recurringDays: selectedDays.join(',')
+                recurringDays: selectedDays.join(','),
+                taskName: formData.taskName || "Untitled Task" // Provide default name if empty
               });
             }
           }
@@ -443,13 +390,19 @@ export default function CreateTaskForm({ onClose }) {
       }
       
       // For non-recurring tasks, create a single task
-      const response = await post('tasks.php', {
-        ...formData,
+
+      setIsLoading(true);
+      // Ensure taskName is not empty
+      const taskData = {
+        ...updatedFormData,
         userId: user.id,
         duration: duration,
-        recurring: 0
-      });
+        recurring: 0,
+        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
+      };
       
+      const response = await post('tasks.php', taskData);
+
       if (!response.ok) {
         throw new Error('Failed to create task');
       }
@@ -636,27 +589,65 @@ export default function CreateTaskForm({ onClose }) {
               <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
                 Start Date
               </label>
-              <input
-                type="date"
-                id="startDate"
-                name="startDate"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.startDate}
-                onChange={handleInputChange}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  id="startDate"
+                  name="startDate"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
+                  value={formData.startDate}
+                  onChange={handleInputChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const formattedDate = `${year}-${month}-${day}`;
+                    setFormData(prev => ({
+                      ...prev,
+                      startDate: formattedDate
+                    }));
+                  }}
+                  className="px-3 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
+                >
+                  Today
+                </button>
+              </div>
             </div>
             <div>
               <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
                 End Date
               </label>
-              <input
-                type="date"
-                id="endDate"
-                name="endDate"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.endDate}
-                onChange={handleInputChange}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  id="endDate"
+                  name="endDate"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
+                  value={formData.endDate}
+                  onChange={handleInputChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const formattedDate = `${year}-${month}-${day}`;
+                    setFormData(prev => ({
+                      ...prev,
+                      endDate: formattedDate
+                    }));
+                  }}
+                  className="px-3 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
+                >
+                  Today
+                </button>
+              </div>
             </div>
           </div>
 

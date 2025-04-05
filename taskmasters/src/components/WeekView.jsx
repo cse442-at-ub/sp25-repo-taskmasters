@@ -259,12 +259,12 @@ export default function WeekView() {
                 {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
               </a>
               <a
-                href="#/avatar"
+                href="#/avatar-customization"
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
-                title="Avatar"
+                title="Avatar Customization"
               >
                 <User size={20} />
-                {!isNavbarCollapsed && <span className="text-lg">Avatar</span>}
+                {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
               </a>
               <a
                 href="#/achievements"
@@ -430,7 +430,7 @@ export default function WeekView() {
                         }}
                       >
                         <div className="font-medium text-xs md:text-sm truncate">
-                          {task.title}
+                          {task.title || "Untitled Task"}
                         </div>
                         <div className="text-[10px] md:text-xs text-gray-600 truncate">
                           {task.category}

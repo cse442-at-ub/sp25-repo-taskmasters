@@ -47,7 +47,7 @@ function App() {
         } />
         <Route path="/achievements" element={
           <ProtectedRoute>
-            <div>Achievements Coming Soon</div>
+            <Achievements />
           </ProtectedRoute>
         } />
         <Route path="/create-task" element={
@@ -67,4 +67,3 @@ function App() {
 }
 
 export default App;
-

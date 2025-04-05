@@ -111,22 +111,40 @@ function Dashboard() {
 
   // Get user data from localStorage
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("user"));
-    console.log("User data from localStorage:", userData);
 
-    if (userData && userData.id) {
-      console.log("User ID found:", userData.id);
-      setUsername(userData.username || "User");
-      fetchDashboardData(userData.id);
-    } else {
-      console.warn("No user data or user ID found in localStorage");
-      // Redirect to login if no user data
-      window.location.href = "#/login";
+    try {
+      const userDataString = localStorage.getItem('user');
+      if (!userDataString) {
+        console.warn('No user data found in localStorage');
+        return; // Let ProtectedRoute handle the redirect
+      }
+      
+      const userData = JSON.parse(userDataString);
+      console.log('User data from localStorage:', userData);
+      
+      if (userData && userData.id) {
+        console.log('User ID found:', userData.id);
+        setUsername(userData.username || "User");
+        
+        // Add a small delay before fetching data to prevent rapid API calls during page transitions
+        const timer = setTimeout(() => {
+          fetchDashboardData(userData.id);
+        }, 100);
+        
+        return () => clearTimeout(timer);
+      } else {
+        console.warn('User ID not found in user data');
+        // Don't redirect here, let ProtectedRoute handle it
+      }
+    } catch (error) {
+      console.error('Error processing user data:', error);
+      // Don't redirect or clear data here, let ProtectedRoute handle it
+
     }
   }, []);
 
-  // Function to fetch tasks for the dashboard
-  const fetchDashboardData = async (userId) => {
+  // Function to fetch tasks for the dashboard with retry logic
+  const fetchDashboardData = async (userId, retryCount = 0) => {
     setIsLoading(true);
     try {
       // Get today's date, ensuring we're using the local date
@@ -143,14 +161,28 @@ function Dashboard() {
       console.log(`Fetching tasks for userId: ${userId}, date: ${today}`);
 
       // First fetch dashboard data for user level and achievements
-      console.log(
-        `Fetching dashboard data for userId: ${userId}, date: ${today}`
-      );
-      const dashboardResponse = await get("dashboard.php", {
-        userId,
-        date: today,
-      });
 
+      console.log(`Fetching dashboard data for userId: ${userId}, date: ${today}`);
+      
+      // Add retry logic for API calls
+      let dashboardResponse;
+      try {
+        dashboardResponse = await get('dashboard.php', { userId, date: today });
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        
+        // Retry up to 3 times with increasing delay
+        if (retryCount < 3) {
+          console.log(`Retrying dashboard data fetch (attempt ${retryCount + 1})`);
+          setTimeout(() => {
+            fetchDashboardData(userId, retryCount + 1);
+          }, 500 * (retryCount + 1));
+          return;
+        } else {
+          throw error;
+        }
+      }
+      
       if (dashboardResponse.ok) {
         const dashboardData = await dashboardResponse.json();
         console.log("Dashboard data:", dashboardData);
@@ -492,10 +524,15 @@ function Dashboard() {
             </a>
             <a
               href="#/achievements"
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200 relative group"
               title="Achievements"
             >
-              <Trophy size={20} />
+              <div className="relative">
+                <Trophy size={20} className="group-hover:animate-pulse" />
+                <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {achievements.total}
+                </span>
+              </div>
               {!isNavbarCollapsed && (
                 <span className="text-lg">Achievements</span>
               )}
@@ -582,9 +619,10 @@ function Dashboard() {
 
             <a
               href="#/achievements"
-              className="mb-4 text-[#9706e9] hover:text-[#8005cc] cursor-pointer transition-colors duration-200"
+              className="mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-[#9706e9] text-white rounded-lg hover:bg-[#8005cc] transition-all duration-200 shadow-md no-underline"
             >
-              Total Achievements: {achievements.total}
+              <Trophy size={18} />
+              <span className="no-underline">View Achievements ({achievements.total})</span>
             </a>
 
             <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#9706e9] to-[#e5cef2] shadow-md">
@@ -872,14 +910,19 @@ function Dashboard() {
       {selectedTaskId && (
         <TaskDetailView
           taskId={selectedTaskId}
-          selectedDate={new Date().toISOString().split("T")[0]}
+          selectedDate={(() => {
+            // Find the task with the matching ID
+            const task = [...tasks, ...completedTasks].find(t => t.id === selectedTaskId);
+            // Use the task's date if available, otherwise use current date
+            return task && task.date ? task.date : new Date().toISOString().split("T")[0];
+          })()}
           onClose={() => setSelectedTaskId(null)}
-          onTaskUpdated={(updatedTask) => {
-            setTasks(
-              tasks.map((task) =>
-                task.id === updatedTask.id ? updatedTask : task
-              )
-            );
+          onTaskUpdated={() => {
+            // Refresh dashboard data to show updated tasks
+            const userData = JSON.parse(localStorage.getItem('user'));
+            if (userData && userData.id) {
+              fetchDashboardData(userData.id);
+            }
           }}
         />
       )}
