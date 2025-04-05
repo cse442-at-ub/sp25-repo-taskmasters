@@ -27,6 +27,36 @@ export default function CreateTaskForm({ onClose }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
+    
+    // Special handling for endTime to ensure it's not earlier than startTime
+    if (name === 'endTime' && value && formData.startTime) {
+      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
+      const endTimeObj = new Date(`2000/01/01 ${value}`);
+      
+      if (endTimeObj <= startTimeObj) {
+        setError('End time must be later than start time');
+        return;
+      }
+    }
+    
+    // Special handling for startTime to ensure it's not later than endTime
+    if (name === 'startTime' && value && formData.endTime) {
+      const startTimeObj = new Date(`2000/01/01 ${value}`);
+      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
+      
+      if (startTimeObj >= endTimeObj) {
+        setError('Start time must be earlier than end time');
+        return;
+      }
+    }
+    
+    // Clear error when changing either time if there was a previous error
+    if ((name === 'startTime' || name === 'endTime') && 
+        (error === 'End time must be later than start time' || 
+         error === 'Start time must be earlier than end time')) {
+      setError('');
+    }
+    
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -167,127 +197,7 @@ export default function CreateTaskForm({ onClose }) {
     setIsDurationModalOpen(true);
   };
 
-  // Handle duration selection and proceed with auto apply
-  const handleDurationSelect = async () => {
-    setIsDurationModalOpen(false);
-    setIsLoading(true);
-    
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) {
-        throw new Error('User not logged in');
-      }
-
-      const date = new Date(formData.startDate);
-      const freeSlot = await findFreeTimeSlot(date, taskDuration);
-      
-      if (!freeSlot) {
-        setError('No suitable free time slots found for this date. Please try another date or set the time manually.');
-        setIsLoading(false);
-        return;
-      }
-      
-      // Create a new task object with the found time slot
-      const updatedFormData = { 
-        ...formData,
-        startTime: freeSlot.startTime,
-        endTime: freeSlot.endTime 
-      };
-      
-      // If end date is not provided, use start date
-      if (!updatedFormData.endDate && updatedFormData.startDate) {
-        updatedFormData.endDate = updatedFormData.startDate;
-      }
-
-      const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
-      const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
-      const duration = Math.round((endTime - startTime) / (1000 * 60));
-
-      // For recurring tasks, create a task for each selected day
-      if (isRecurring && selectedDays.length > 0) {
-        // Create a task for each selected day
-        const createRecurringTasks = async () => {
-          const startDate = new Date(updatedFormData.startDate);
-          const endDate = new Date(updatedFormData.endDate);
-          
-          // Create a task for the initial date using the secure API utility
-          const initialResponse = await post('tasks.php', {
-            ...updatedFormData,
-            userId: user.id,
-            duration: duration,
-            recurring: 1,
-            recurringDays: selectedDays.join(',')
-          });
-
-          if (!initialResponse.ok) {
-            throw new Error('Failed to create initial task');
-          }
-
-          // Calculate the date range for recurring tasks
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-          
-          // Create tasks for each selected day within the date range
-          for (let i = 1; i <= daysDiff; i++) {
-            const currentDate = new Date(startDate);
-            currentDate.setDate(startDate.getDate() + i);
-            
-            // Check if the current day of the week is in the selected days
-            const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-            if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-              // Use the secure API utility for recurring tasks
-              await post('tasks.php', {
-                ...updatedFormData,
-                userId: user.id,
-                duration: duration,
-                startDate: currentDate.toISOString().split('T')[0],
-                recurring: 1,
-                recurringDays: selectedDays.join(',')
-              });
-            }
-          }
-        };
-
-        await createRecurringTasks();
-        onClose();
-        return;
-      }
-
-      // For non-recurring tasks, create a single task using the secure API utility
-      const response = await post('tasks.php', {
-        ...updatedFormData,
-        userId: user.id,
-        duration: duration,
-        recurring: 0
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to create task');
-      }
-      
-      // Close the modal after successful task creation
-      onClose();
-      
-    } catch (error) {
-      console.error('Error auto-applying task:', error);
-      setError(error.message || 'Failed to auto-apply task');
-      setIsLoading(false);
-    }
-  };
-
-  const navigate = useNavigate()
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    // Check if start date is provided
-    if (!formData.startDate) {
-      setError('Please select a start date before using Auto Apply');
-      return;
-    }
-    
-    setIsDurationModalOpen(true);
-  };
+  
 
   // Handle duration selection and proceed with auto apply
   const handleDurationSelect = async () => {
@@ -420,6 +330,140 @@ export default function CreateTaskForm({ onClose }) {
     onClose()
   }
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate that end time is not earlier than start time
+    if (formData.startTime && formData.endTime) {
+      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
+      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
+      
+      if (endTimeObj <= startTimeObj) {
+        setError('End time must be later than start time');
+        return;
+      }
+    }
+    
+    // Validate required fields
+    if (!formData.taskName) {
+      setError('Task name is required');
+      return;
+    }
+    
+    if (!formData.startDate) {
+      setError('Start date is required');
+      return;
+    }
+    
+    if (!formData.startTime) {
+      setError('Start time is required');
+      return;
+    }
+    
+    if (!formData.endTime) {
+      setError('End time is required');
+      return;
+    }
+    
+    if (!formData.priority) {
+      setError('Priority is required');
+      return;
+    }
+    
+    // If recurring is enabled but no days are selected, show an error
+    if (isRecurring && selectedDays.length === 0) {
+      setError('Please select at least one day for recurring tasks');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user) {
+        throw new Error('User not logged in');
+      }
+      
+      // Calculate duration in minutes
+      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
+      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
+      const duration = Math.round((endTimeObj - startTimeObj) / (1000 * 60));
+      
+      // If end date is not provided, use start date
+      if (!formData.endDate && formData.startDate) {
+        formData.endDate = formData.startDate;
+      }
+      
+      // For recurring tasks, create a task for each selected day
+      if (isRecurring && selectedDays.length > 0) {
+        const createRecurringTasks = async () => {
+          const startDate = new Date(formData.startDate);
+          const endDate = new Date(formData.endDate || formData.startDate);
+          
+          // Create a task for the initial date
+          const initialResponse = await post('tasks.php', {
+            ...formData,
+            userId: user.id,
+            duration: duration,
+            recurring: 1,
+            recurringDays: selectedDays.join(',')
+          });
+          
+          if (!initialResponse.ok) {
+            throw new Error('Failed to create initial task');
+          }
+          
+          // Calculate the date range for recurring tasks
+          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          
+          // Create tasks for each selected day within the date range
+          for (let i = 1; i <= daysDiff; i++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + i);
+            
+            // Check if the current day of the week is in the selected days
+            const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
+              await post('tasks.php', {
+                ...formData,
+                userId: user.id,
+                duration: duration,
+                startDate: currentDate.toISOString().split('T')[0],
+                recurring: 1,
+                recurringDays: selectedDays.join(',')
+              });
+            }
+          }
+        };
+        
+        await createRecurringTasks();
+        setIsLoading(false);
+        onClose();
+        return;
+      }
+      
+      // For non-recurring tasks, create a single task
+      const response = await post('tasks.php', {
+        ...formData,
+        userId: user.id,
+        duration: duration,
+        recurring: 0
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create task');
+      }
+      
+      setIsLoading(false);
+      onClose();
+    } catch (error) {
+      console.error('Error creating task:', error);
+      setError(error.message || 'Failed to create task');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto relative">
@@ -542,7 +586,7 @@ export default function CreateTaskForm({ onClose }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
+          <div> 
             <label htmlFor="taskName" className="block text-sm font-medium text-gray-700 mb-1">
               Task Name
             </label>
