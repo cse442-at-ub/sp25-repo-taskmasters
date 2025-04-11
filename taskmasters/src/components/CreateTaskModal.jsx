@@ -227,9 +227,12 @@ export default function CreateTaskForm({ onClose }) {
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
           // Create tasks for each selected day within the date range
-          for (let i = 1; i <= daysDiff; i++) {
+          // Start from i=0 to include the initial date in the loop
+          for (let i = 0; i <= daysDiff; i++) {
+            // Create a new date object for the current date in the loop
             const currentDate = new Date(startDate);
-            currentDate.setDate(startDate.getDate() + i);
+            // Add i days to the start date to get the current date
+            currentDate.setDate(currentDate.getDate() + i);
             
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -358,9 +361,12 @@ export default function CreateTaskForm({ onClose }) {
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
           // Create tasks for each selected day within the date range
-          for (let i = 1; i <= daysDiff; i++) {
+          // Start from i=0 to include the initial date in the loop
+          for (let i = 0; i <= daysDiff; i++) {
+            // Create a new date object for the current date in the loop
             const currentDate = new Date(startDate);
-            currentDate.setDate(startDate.getDate() + i);
+            // Add i days to the start date to get the current date
+            currentDate.setDate(currentDate.getDate() + i);
             
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
