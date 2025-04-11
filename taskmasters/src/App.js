@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import Dashboard from './components/Dashboard';
 import DayView from './components/DayView';
 import WeekView from './components/WeekView';
@@ -18,6 +19,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ResetPasswordPage />} />
         {/* Protected routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -35,7 +37,6 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/month-view" element={
-
           <ProtectedRoute>
             <MonthView />
           </ProtectedRoute>
