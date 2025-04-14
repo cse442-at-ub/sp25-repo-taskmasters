@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useState, useEffect } from "react";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
@@ -17,9 +19,12 @@ import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
 import config from "../config";
 import { get, post } from "../utils/api";
+import config from "../config";
+import { get, post } from "../utils/api";
 
 function Dashboard() {
   const [tasks, setTasks] = useState([]);
+  const [completedTasks, setCompletedTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
   const [scheduleItems, setScheduleItems] = useState([]);
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
@@ -682,6 +687,7 @@ function Dashboard() {
             </h2>
             <button
               className="bg-[#9706e9] text-white p-3 rounded-full hover:bg-[#8005cc] transition-all duration-200 shadow-md"
+              className="bg-[#9706e9] text-white p-3 rounded-full hover:bg-[#8005cc] transition-all duration-200 shadow-md"
               onClick={handleAddTask}
             >
               <PlusCircle size={20} />
@@ -842,6 +848,8 @@ function Dashboard() {
                       <div
                         key={task.id}
                         className="bg-gray-50 border border-gray-100 rounded-lg overflow-hidden opacity-80"
+                        key={task.id}
+                        className="bg-gray-50 border border-gray-100 rounded-lg overflow-hidden opacity-80"
                         onClick={() => handleTaskClick(task.id)}
                       >
                         <div className="flex items-center p-4 cursor-pointer">
@@ -894,8 +902,15 @@ function Dashboard() {
                   </div>
                 </div>
               ))}
+                  </div>
+                </div>
+              ))}
             </>
           ) : (
+            <div className="bg-gray-50 rounded-lg p-8 text-center">
+              <div className="text-gray-500">
+                No completed tasks yet. Complete a task to see it here.
+              </div>
             <div className="bg-gray-50 rounded-lg p-8 text-center">
               <div className="text-gray-500">
                 No completed tasks yet. Complete a task to see it here.

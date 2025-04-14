@@ -22,6 +22,7 @@ function App() {
     <Router>
       <Routes>
         {/* Public routes */}
+        {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         {/* Protected routes */}
@@ -95,9 +96,13 @@ function App() {
 
         {/* Catch all route - redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* Catch all route - redirect to login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );
 }
 
 export default App;
+
