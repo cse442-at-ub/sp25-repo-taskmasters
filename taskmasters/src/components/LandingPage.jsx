@@ -158,7 +158,7 @@ function LandingPage() {
       {/* Footer */}
       <footer className="bg-white border-top py-4">
         <div className="container text-center text-muted">
-          <p className="mb-0">© 2024 TaskMasters. All rights reserved.</p>
+          <p className="mb-0">© 2025 TaskMasters. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -205,36 +205,110 @@ export default function CreateTaskForm({ onClose }) {
   const navigate = useNavigate()
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) {
-        throw new Error('User not logged in');
-      }
-
-      // For non-recurring tasks, create a single task
+    
+    // Check if start date is provided
+    if (!formData.startDate) {
+      setError('Please select a start date');
+      return;
+    }
+    
+    // If startTime and endTime are already set, directly submit the form
+    // Otherwise, open the duration modal for auto-apply
+    if (formData.startTime && formData.endTime) {
       setIsLoading(true);
-      // Ensure taskName is not empty
-      const taskData = {
-        ...formData,
-        userId: user.id,
-        duration: taskDuration,
-        recurring: 0,
-        taskName: formData.taskName || "Untitled Task" // Provide default name if empty
-      };
-      
-      const response = await post('tasks.php', taskData);
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
+          throw new Error('User not logged in');
+        }
+        
+        // Calculate duration from start and end times
+        const startTime = new Date(`2000/01/01 ${formData.startTime}`);
+        const endTime = new Date(`2000/01/01 ${formData.endTime}`);
+        const duration = Math.round((endTime - startTime) / (1000 * 60));
+        
+        // If end date is not provided, use start date
+        if (!formData.endDate && formData.startDate) {
+          formData.endDate = formData.startDate;
+        }
+        
+        // For recurring tasks
+        if (isRecurring && selectedDays.length > 0) {
 
-      if (!response.ok) {
-        throw new Error('Failed to create task');
+          const startDate = new Date(formData.startDate);
+          const endDate = new Date(formData.endDate || formData.startDate);
+          
+          // Create a task for the initial date
+
+          // Ensure taskName is not empty
+          const taskData = {
+
+            ...formData,
+            userId: user.id,
+            duration: duration,
+            recurring: 1,
+            recurringDays: selectedDays.join(','),
+            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+          };
+          
+          const initialResponse = await post('tasks.php', taskData);
+          
+          if (!initialResponse.ok) {
+            throw new Error('Failed to create initial task');
+          }
+          
+          // Calculate the date range for recurring tasks
+          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          
+          // Create tasks for each selected day within the date range
+          for (let i = 1; i <= daysDiff; i++) {
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + i);
+            
+            // Check if the current day of the week is in the selected days
+            const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
+
+              await post('tasks.php', {
+                ...formData,
+                userId: user.id,
+                duration: duration,
+                startDate: currentDate.toISOString().split('T')[0],
+                recurring: 1,
+                recurringDays: selectedDays.join(','),
+                taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+              });
+            }
+          }
+
+        } else {
+          // For non-recurring tasks
+          // Ensure taskName is not empty
+          const taskData = {
+            ...formData,
+            userId: user.id,
+            duration: duration,
+            recurring: 0,
+            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+          };
+          
+          const response = await post('tasks.php', taskData);
+          
+          if (!response.ok) {
+            throw new Error('Failed to create task');
+          }
+        }
+        
+        onClose();
+      } catch (error) {
+        console.error('Error creating task:', error);
+        setError(error.message || 'Failed to create task');
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
-      onClose();
-    } catch (error) {
-      console.error('Error creating task:', error);
-      setError(error.message || 'Failed to create task');
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Open duration modal for auto-apply
+      setIsDurationModalOpen(true);
     }
   };
 
@@ -320,11 +394,11 @@ export default function CreateTaskForm({ onClose }) {
       setIsLoading(true);
       // Ensure taskName is not empty
       const taskData = {
-        ...formData,
+        ...updatedFormData,
         userId: user.id,
         duration: duration,
         recurring: 0,
-        taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
       };
       
       const response = await post('tasks.php', taskData);
@@ -691,7 +765,7 @@ export default function CreateTaskForm({ onClose }) {
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               disabled={isLoading}
               className="px-6 py-2 border border-[#9706e9] text-[#9706e9] rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200"
             >
