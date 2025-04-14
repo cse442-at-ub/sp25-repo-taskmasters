@@ -314,108 +314,38 @@ export default function CreateTaskForm({ onClose }) {
 
   // Handle duration selection and proceed with auto apply
   const handleDurationSelect = async () => {
-    setIsDurationModalOpen(false);
     setIsLoading(true);
-    
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (!user) {
-        throw new Error('User not logged in');
-      }
+      const startDate = new Date(formData.startDate);
+      const freeSlot = await findFreeTimeSlot(startDate, taskDuration);
       
-      // Calculate duration in minutes
-      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
-      const duration = Math.round((endTimeObj - startTimeObj) / (1000 * 60));
-      
-      // If end date is not provided, use start date
-      if (!formData.endDate && formData.startDate) {
-        formData.endDate = formData.startDate;
-      }
-      
-      // For recurring tasks, create a task for each selected day
-      if (isRecurring && selectedDays.length > 0) {
-        const createRecurringTasks = async () => {
-          const startDate = new Date(formData.startDate);
-          const endDate = new Date(formData.endDate || formData.startDate);
-          
-          // Create a task for the initial date
-          // Ensure taskName is not empty
-          const taskData = {
-            ...formData,
-            userId: user.id,
-            duration: duration,
-            recurring: 1,
-
-            recurringDays: selectedDays.join(','),
-            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
-          };
-          
-          const initialResponse = await post('tasks.php', taskData);
-
-
-          if (!initialResponse.ok) {
-            throw new Error('Failed to create initial task');
-          }
-          
-          // Calculate the date range for recurring tasks
-          const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-          
-          // Create tasks for each selected day within the date range
-          for (let i = 1; i <= daysDiff; i++) {
-            const currentDate = new Date(startDate);
-            currentDate.setDate(startDate.getDate() + i);
-            
-            // Check if the current day of the week is in the selected days
-            const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-            if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-              // Ensure taskName is not empty for recurring tasks too
-              await post('tasks.php', {
-                ...formData,
-                userId: user.id,
-                duration: duration,
-                startDate: currentDate.toISOString().split('T')[0],
-                recurring: 1,
-                recurringDays: selectedDays.join(','),
-                taskName: formData.taskName || "Untitled Task" // Provide default name if empty
-              });
-            }
-          }
-        };
-        
-        await createRecurringTasks();
+      if (!freeSlot) {
+        setError('No suitable time slot found for the selected duration');
         setIsLoading(false);
-        onClose();
         return;
       }
-      
-      // For non-recurring tasks, create a single task
 
-      setIsLoading(true);
-      // Ensure taskName is not empty
-      const taskData = {
-        ...updatedFormData,
-        userId: user.id,
-        duration: duration,
-        recurring: 0,
-        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
+      // Update form data with the found time slot
+      const updatedFormData = {
+        ...formData,
+        startTime: freeSlot.startTime,
+        endTime: freeSlot.endTime
       };
       
-      const response = await post('tasks.php', taskData);
-
-      if (!response.ok) {
-        throw new Error('Failed to create task');
-      }
-      
-      setIsLoading(false);
-      onClose();
+      setFormData(updatedFormData);
+      setIsDurationModalOpen(false);
+      setDisplacementNotice(null);
     } catch (error) {
-      console.error('Error creating task:', error);
-      setError(error.message || 'Failed to create task');
+      setError('Failed to find a suitable time slot');
     } finally {
       setIsLoading(false);
     }
-  }
+  };
+
+  const handleCancel = () => {
+    setIsDurationModalOpen(false);
+    setDisplacementNotice(null);
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
