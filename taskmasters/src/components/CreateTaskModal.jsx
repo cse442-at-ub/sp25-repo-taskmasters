@@ -28,36 +28,6 @@ export default function CreateTaskForm({ onClose }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
-    
-    // Special handling for endTime to ensure it's not earlier than startTime
-    if (name === 'endTime' && value && formData.startTime) {
-      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTimeObj = new Date(`2000/01/01 ${value}`);
-      
-      if (endTimeObj <= startTimeObj) {
-        setError('End time must be later than start time');
-        return;
-      }
-    }
-    
-    // Special handling for startTime to ensure it's not later than endTime
-    if (name === 'startTime' && value && formData.endTime) {
-      const startTimeObj = new Date(`2000/01/01 ${value}`);
-      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
-      
-      if (startTimeObj >= endTimeObj) {
-        setError('Start time must be earlier than end time');
-        return;
-      }
-    }
-    
-    // Clear error when changing either time if there was a previous error
-    if ((name === 'startTime' || name === 'endTime') && 
-        (error === 'End time must be later than start time' || 
-         error === 'Start time must be earlier than end time')) {
-      setError('');
-    }
-    
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -198,7 +168,6 @@ export default function CreateTaskForm({ onClose }) {
     setIsDurationModalOpen(true);
   };
 
-
   // This is a placeholder declaration to avoid duplicate function error
   // The actual implementation is below in the handleSubmit function
 
@@ -234,15 +203,12 @@ export default function CreateTaskForm({ onClose }) {
         
         // For recurring tasks
         if (isRecurring && selectedDays.length > 0) {
-
           const startDate = new Date(formData.startDate);
           const endDate = new Date(formData.endDate || formData.startDate);
           
           // Create a task for the initial date
-
           // Ensure taskName is not empty
           const taskData = {
-
             ...formData,
             userId: user.id,
             duration: duration,
@@ -268,7 +234,7 @@ export default function CreateTaskForm({ onClose }) {
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
-
+              // Ensure taskName is not empty for recurring tasks too
               await post('tasks.php', {
                 ...formData,
                 userId: user.id,
@@ -280,7 +246,6 @@ export default function CreateTaskForm({ onClose }) {
               });
             }
           }
-
         } else {
           // For non-recurring tasks
           // Ensure taskName is not empty
@@ -316,25 +281,58 @@ export default function CreateTaskForm({ onClose }) {
   const handleDurationSelect = async () => {
     setIsDurationModalOpen(false);
     setIsLoading(true);
+    setDisplacementNotice(null); // Clear any previous notifications
     
     try {
       const user = JSON.parse(localStorage.getItem('user'));
       if (!user) {
         throw new Error('User not logged in');
       }
+
+      // Validate priority is set before auto-applying
+      if (!formData.priority) {
+        setError('Please select a priority level before using Auto Apply');
+        setIsLoading(false);
+        return;
+      }
+
+      const date = new Date(formData.startDate);
+      const freeSlot = await findFreeTimeSlot(date, taskDuration, formData.priority);
       
-      // Calculate duration in minutes
-      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
-      const duration = Math.round((endTimeObj - startTimeObj) / (1000 * 60));
-      
-      // If end date is not provided, use start date
-      if (!formData.endDate && formData.startDate) {
-        formData.endDate = formData.startDate;
+      if (!freeSlot) {
+        setError('No suitable time slots found for this task with the selected priority. Please try a different priority or set the time manually.');
+        setIsLoading(false);
+        return;
       }
       
+      // Create a new task object with the found time slot
+      const updatedFormData = { 
+        ...formData,
+        startTime: freeSlot.startTime,
+        endTime: freeSlot.endTime 
+      };
+      
+      // If end date is not provided, use start date
+      if (!updatedFormData.endDate && updatedFormData.startDate) {
+        updatedFormData.endDate = updatedFormData.startDate;
+      }
+
+      const startTime = new Date(`2000/01/01 ${freeSlot.startTime}`);
+      const endTime = new Date(`2000/01/01 ${freeSlot.endTime}`);
+      const duration = Math.round((endTime - startTime) / (1000 * 60));
+
+
+      // If recurring is enabled but no days are selected, show an error
+      if (isRecurring && selectedDays.length === 0) {
+        setError('Please select at least one day for recurring tasks');
+        setIsLoading(false);
+        return;
+      }
+
       // For recurring tasks, create a task for each selected day
       if (isRecurring && selectedDays.length > 0) {
+        // Create a task for each selected day
+        setIsLoading(true);
         const createRecurringTasks = async () => {
           const startDate = new Date(formData.startDate);
           const endDate = new Date(formData.endDate || formData.startDate);
@@ -346,18 +344,16 @@ export default function CreateTaskForm({ onClose }) {
             userId: user.id,
             duration: duration,
             recurring: 1,
-
             recurringDays: selectedDays.join(','),
             taskName: formData.taskName || "Untitled Task" // Provide default name if empty
           };
           
           const initialResponse = await post('tasks.php', taskData);
 
-
           if (!initialResponse.ok) {
             throw new Error('Failed to create initial task');
           }
-          
+
           // Calculate the date range for recurring tasks
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
@@ -382,15 +378,14 @@ export default function CreateTaskForm({ onClose }) {
             }
           }
         };
-        
+
         await createRecurringTasks();
         setIsLoading(false);
         onClose();
         return;
       }
-      
-      // For non-recurring tasks, create a single task
 
+      // For non-recurring tasks, create a single task
       setIsLoading(true);
       // Ensure taskName is not empty
       const taskData = {
@@ -412,9 +407,15 @@ export default function CreateTaskForm({ onClose }) {
     } catch (error) {
       console.error('Error creating task:', error);
       setError(error.message || 'Failed to create task');
+
     } finally {
+
       setIsLoading(false);
     }
+  }
+
+  const handleCancel = () => {
+    onClose()
   }
 
   return (
@@ -539,7 +540,7 @@ export default function CreateTaskForm({ onClose }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div> 
+          <div>
             <label htmlFor="taskName" className="block text-sm font-medium text-gray-700 mb-1">
               Task Name
             </label>

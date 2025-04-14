@@ -16,6 +16,9 @@ import {
   AlertCircle,
   UserCircle,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import config from "../config";
+import { get } from "../utils/api";
 import avatarBackground from "../assets/AvatarBackground.png";
 import level1Avatar from "../assets/Level1Avatar.png";
 
@@ -32,17 +35,18 @@ import taskExplorerImg from "../assets/TaskExplorer.png";
 import achievementHunterImg from "../assets/AchievementHunter.png";
 
 export default function Achievements() {
+  const navigate = useNavigate();
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [previewAchievement, setPreviewAchievement] = useState(null);
-  const [userPoints, setUserPoints] = useState(10000);
+  const [userPoints, setUserPoints] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentAvatar, setCurrentAvatar] = useState({
     name: "Novice Explorer",
     image: level1Avatar,
   });
   const [achievementNotification, setAchievementNotification] = useState(null);
-
-  // Achievement data with image references
-  const achievements = [
+  const [achievements, setAchievements] = useState([
     {
       id: 1,
       name: "First Task",
@@ -133,7 +137,7 @@ export default function Achievements() {
       unlockDate: null,
       image: achievementHunterImg,
     },
-  ];
+  ]);
 
   // Format date helper function
   const formatDate = (dateString) => {
@@ -145,6 +149,126 @@ export default function Achievements() {
       day: "numeric",
     });
   };
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Get user data from localStorage
+        const storedUser = JSON.parse(localStorage.getItem("user"));
+        if (!storedUser || !storedUser.id) {
+          console.warn("No valid user data found in localStorage");
+          navigate("/login");
+          return;
+        }
+
+        console.log("User data from localStorage:", storedUser);
+
+        // Fetch user level and points from dashboard API
+        try {
+          const dashboardResponse = await get(
+            `dashboard.php?userId=${storedUser.id}`
+          );
+          if (dashboardResponse.ok) {
+            const dashboardData = await dashboardResponse.json();
+            console.log("Dashboard API Response:", dashboardData);
+
+            if (dashboardData.level) {
+              const level = dashboardData.level.level || 1;
+              const points = dashboardData.level.totalPoints || 0;
+
+              console.log("Setting user level from dashboard to:", level);
+              console.log("Setting user points from dashboard to:", points);
+
+              setUserLevel(level);
+              setUserPoints(points);
+
+              // Update localStorage with current level and points for better persistence
+              const updatedUser = {
+                ...storedUser,
+                level: level,
+                points: points,
+              };
+              localStorage.setItem("user", JSON.stringify(updatedUser));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching dashboard data:", error);
+        }
+
+        // Fetch user avatar
+        try {
+          const avatarResponse = await get(
+            `avatar.php?userId=${storedUser.id}`
+          );
+          if (avatarResponse.ok) {
+            const avatarData = await avatarResponse.json();
+            console.log("Avatar API Response:", avatarData);
+
+            if (
+              avatarData.currentAvatar &&
+              avatarData.currentAvatar.name &&
+              avatarData.currentAvatar.image_url
+            ) {
+              setCurrentAvatar({
+                name: avatarData.currentAvatar.name,
+                image: level1Avatar, // You should map this properly based on the avatar_id
+              });
+            }
+
+            // Update points from avatar API if dashboard didn't provide them
+            if (avatarData.totalPoints !== undefined && userPoints === 0) {
+              const points = parseInt(avatarData.totalPoints);
+              setUserPoints(points);
+              console.log("Setting points from avatar API:", points);
+
+              // Update localStorage
+              const updatedUser = {
+                ...storedUser,
+                points: points,
+              };
+              localStorage.setItem("user", JSON.stringify(updatedUser));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching avatar data:", error);
+        }
+
+        // Fetch achievements from API
+        try {
+          const achievementsResponse = await get(
+            `achievements.php?userId=${storedUser.id}`
+          );
+          if (achievementsResponse.ok) {
+            const achievementsData = await achievementsResponse.json();
+            console.log("Achievements API Response:", achievementsData);
+
+            // Map achievements data from API to our format
+            if (
+              achievementsData.achievements &&
+              achievementsData.achievements.length > 0
+            ) {
+              // Here we would map the API achievements to our format
+              // For now, just using the mock data
+              console.log(
+                "Achievement data available but using mock data for now"
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching achievements data:", error);
+        }
+      } catch (error) {
+        console.error("Error in fetchUserData:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
 
   const handleAchievementClick = (achievement) => {
     setPreviewAchievement({
@@ -260,6 +384,14 @@ export default function Achievements() {
       setAchievementNotification(null);
     };
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#9706e9]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full">
@@ -395,7 +527,7 @@ export default function Achievements() {
             <div>
               <h1 className="text-5xl font-bold">Achievements</h1>
               <span className="text-sm text-gray-300">
-                {currentAvatar.name}
+                {currentAvatar.name} - Level {userLevel}
               </span>
             </div>
           </div>
