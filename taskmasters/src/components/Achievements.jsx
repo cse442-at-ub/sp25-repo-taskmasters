@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { get, post } from "../utils/api";
 import {
   LayoutDashboard,
   Calendar,
@@ -15,18 +14,13 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  UserCircle,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import config from "../config";
+import { get } from "../utils/api";
 import avatarBackground from "../assets/AvatarBackground.png";
 import level1Avatar from "../assets/Level1Avatar.png";
-import level2Avatar from "../assets/Level2Avatar.png";
-import level3Avatar from "../assets/Level3Avatar.png";
-import level4Avatar from "../assets/Level4Avatar.png";
-import level5Avatar from "../assets/Level5Avatar.png";
-import level6Avatar from "../assets/Level6Avatar.png";
-import level7Avatar from "../assets/Level7Avatar.png";
-import level8Avatar from "../assets/Level8Avatar.png";
-import level9Avatar from "../assets/Level9Avatar.png";
-import level10Avatar from "../assets/Level10Avatar.png";
 
 // Import achievement images
 import firstTaskImg from "../assets/FirstTask.png";
@@ -41,9 +35,12 @@ import taskExplorerImg from "../assets/TaskExplorer.png";
 import achievementHunterImg from "../assets/AchievementHunter.png";
 
 export default function Achievements() {
+  const navigate = useNavigate();
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [previewAchievement, setPreviewAchievement] = useState(null);
-  const [userPoints, setUserPoints] = useState(10000);
+  const [userPoints, setUserPoints] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentAvatar, setCurrentAvatar] = useState({
     name: "Novice Explorer",
     image: level1Avatar,
@@ -142,121 +139,6 @@ export default function Achievements() {
     },
   ]);
 
-  // Helper function to get the correct image for an achievement
-  const getAchievementImage = (iconName) => {
-    switch (iconName) {
-      case 'FirstTask.png': return firstTaskImg;
-      case 'TaskStreak.png': return taskStreakImg;
-      case 'EarlyBird.png': return earlyBirdImg;
-      case 'NightOwl.png': return nightOwlImg;
-      case 'TaskMaster.png': return taskMasterImg;
-      case 'PerfectWeek.png': return perfectWeekImg;
-      case 'BigSpender.png': return bigSpenderImg;
-      case 'TimeManager.png': return timeManagerImg;
-      case 'TaskExplorer.png': return taskExplorerImg;
-      case 'AchievementHunter.png': return achievementHunterImg;
-      default: return firstTaskImg; // Default fallback
-    }
-  };
-
-  // Helper function to get the avatar image
-  const getAvatarImage = (filename) => {
-    if (!filename) return level1Avatar;
-    
-    switch (filename) {
-      case 'Level1Avatar.png': return level1Avatar;
-      case 'Level2Avatar.png': return level2Avatar;
-      case 'Level3Avatar.png': return level3Avatar;
-      case 'Level4Avatar.png': return level4Avatar;
-      case 'Level5Avatar.png': return level5Avatar;
-      case 'Level6Avatar.png': return level6Avatar;
-      case 'Level7Avatar.png': return level7Avatar;
-      case 'Level8Avatar.png': return level8Avatar;
-      case 'Level9Avatar.png': return level9Avatar;
-      case 'Level10Avatar.png': return level10Avatar;
-      default: return level1Avatar; // Default fallback
-    }
-  };
-
-  // Fetch achievements data from backend when component mounts
-  useEffect(() => {
-    const fetchAchievementsData = async () => {
-      try {
-        // Get user data with error handling
-        let userData;
-        try {
-          const userDataString = localStorage.getItem('user');
-          if (!userDataString) {
-            console.warn('User data not found in localStorage');
-            return;
-          }
-          
-          userData = JSON.parse(userDataString);
-          if (!userData || !userData.id) {
-            console.warn('User ID not found in user data');
-            return;
-          }
-        } catch (error) {
-          console.error('Error processing user data:', error);
-          return;
-        }
-
-        // Fetch achievements data from the backend
-        try {
-          const response = await get(`achievements.php?userId=${userData.id}`);
-          const data = await response.json();
-          
-          console.log('Achievements data from backend:', data);
-          
-          if (data) {
-            // Set current avatar if available
-            if (data.currentAvatar) {
-              // Get just the filename from the path
-              const filename = data.currentAvatar.image_url.split('/').pop();
-              // Use the helper function to get the image
-              setCurrentAvatar({
-                id: data.currentAvatar.avatar_id,
-                name: data.currentAvatar.name,
-                image: getAvatarImage(filename)
-              });
-            }
-            
-            // Set user points
-            if (data.totalPoints !== undefined) {
-              setUserPoints(data.totalPoints);
-            }
-            
-            // Update achievements with unlocked status
-            if (data.achievements && Array.isArray(data.achievements)) {
-              const updatedAchievements = [...achievements];
-              
-              // Update each achievement with unlocked status from backend
-              data.achievements.forEach(backendAchievement => {
-                const index = updatedAchievements.findIndex(a => a.id === backendAchievement.id);
-                if (index !== -1) {
-                  updatedAchievements[index] = {
-                    ...updatedAchievements[index],
-                    isUnlocked: backendAchievement.isUnlocked,
-                    unlockDate: backendAchievement.unlockDate
-                  };
-                }
-              });
-              
-              // Update state with the updated achievements
-              setAchievements(updatedAchievements);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching achievements data from backend:', error);
-        }
-      } catch (error) {
-        console.error('Error in fetchAchievementsData:', error);
-      }
-    };
-
-    fetchAchievementsData();
-  }, []);
-
   // Format date helper function
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -267,6 +149,126 @@ export default function Achievements() {
       day: "numeric",
     });
   };
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Get user data from localStorage
+        const storedUser = JSON.parse(localStorage.getItem("user"));
+        if (!storedUser || !storedUser.id) {
+          console.warn("No valid user data found in localStorage");
+          navigate("/login");
+          return;
+        }
+
+        console.log("User data from localStorage:", storedUser);
+
+        // Fetch user level and points from dashboard API
+        try {
+          const dashboardResponse = await get(
+            `dashboard.php?userId=${storedUser.id}`
+          );
+          if (dashboardResponse.ok) {
+            const dashboardData = await dashboardResponse.json();
+            console.log("Dashboard API Response:", dashboardData);
+
+            if (dashboardData.level) {
+              const level = dashboardData.level.level || 1;
+              const points = dashboardData.level.totalPoints || 0;
+
+              console.log("Setting user level from dashboard to:", level);
+              console.log("Setting user points from dashboard to:", points);
+
+              setUserLevel(level);
+              setUserPoints(points);
+
+              // Update localStorage with current level and points for better persistence
+              const updatedUser = {
+                ...storedUser,
+                level: level,
+                points: points,
+              };
+              localStorage.setItem("user", JSON.stringify(updatedUser));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching dashboard data:", error);
+        }
+
+        // Fetch user avatar
+        try {
+          const avatarResponse = await get(
+            `avatar.php?userId=${storedUser.id}`
+          );
+          if (avatarResponse.ok) {
+            const avatarData = await avatarResponse.json();
+            console.log("Avatar API Response:", avatarData);
+
+            if (
+              avatarData.currentAvatar &&
+              avatarData.currentAvatar.name &&
+              avatarData.currentAvatar.image_url
+            ) {
+              setCurrentAvatar({
+                name: avatarData.currentAvatar.name,
+                image: level1Avatar, // You should map this properly based on the avatar_id
+              });
+            }
+
+            // Update points from avatar API if dashboard didn't provide them
+            if (avatarData.totalPoints !== undefined && userPoints === 0) {
+              const points = parseInt(avatarData.totalPoints);
+              setUserPoints(points);
+              console.log("Setting points from avatar API:", points);
+
+              // Update localStorage
+              const updatedUser = {
+                ...storedUser,
+                points: points,
+              };
+              localStorage.setItem("user", JSON.stringify(updatedUser));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching avatar data:", error);
+        }
+
+        // Fetch achievements from API
+        try {
+          const achievementsResponse = await get(
+            `achievements.php?userId=${storedUser.id}`
+          );
+          if (achievementsResponse.ok) {
+            const achievementsData = await achievementsResponse.json();
+            console.log("Achievements API Response:", achievementsData);
+
+            // Map achievements data from API to our format
+            if (
+              achievementsData.achievements &&
+              achievementsData.achievements.length > 0
+            ) {
+              // Here we would map the API achievements to our format
+              // For now, just using the mock data
+              console.log(
+                "Achievement data available but using mock data for now"
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching achievements data:", error);
+        }
+      } catch (error) {
+        console.error("Error in fetchUserData:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
 
   const handleAchievementClick = (achievement) => {
     setPreviewAchievement({
@@ -279,7 +281,7 @@ export default function Achievements() {
     setPreviewAchievement(null);
   };
 
-  // Function to unlock an achievement
+  // Function to simulate unlocking an achievement
   const unlockAchievement = (achievement) => {
     if (achievement.isUnlocked) {
       return; // Already unlocked
@@ -288,7 +290,7 @@ export default function Achievements() {
     // Find the achievement in our array and update it
     const updatedAchievements = achievements.map((a) => {
       if (a.id === achievement.id) {
-        return { ...a, isUnlocked: true, unlockDate: new Date().toISOString() };
+        return { ...a, isUnlocked: true };
       }
       return a;
     });
@@ -314,27 +316,6 @@ export default function Achievements() {
 
     // Close the preview
     closePreview();
-
-    // Call backend API to record the achievement (but don't wait for it)
-    try {
-      const userDataString = localStorage.getItem('user');
-      if (userDataString) {
-        const userData = JSON.parse(userDataString);
-        if (userData && userData.id) {
-          post('achievements.php', {
-            action: 'unlockAchievement',
-            userId: userData.id,
-            achievementId: achievement.id
-          }).then(response => {
-            console.log('Achievement recorded in backend:', response);
-          }).catch(error => {
-            console.error('Error recording achievement in backend:', error);
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error processing user data:', error);
-    }
   };
 
   // Function to navigate to previous achievement
@@ -403,6 +384,14 @@ export default function Achievements() {
       setAchievementNotification(null);
     };
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#9706e9]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full">
@@ -476,7 +465,9 @@ export default function Achievements() {
               title="Avatar Customization"
             >
               <User size={20} />
-              {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
+              {!isNavbarCollapsed && (
+                <span className="text-lg">Avatar Customization</span>
+              )}
             </a>
             <a
               href="#/achievements"
@@ -487,6 +478,14 @@ export default function Achievements() {
               {!isNavbarCollapsed && (
                 <span className="text-lg">Achievements</span>
               )}
+            </a>
+            <a
+              href="#/profile"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              title="Profile"
+            >
+              <UserCircle size={20} />
+              {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
             </a>
           </div>
         </nav>
@@ -528,7 +527,7 @@ export default function Achievements() {
             <div>
               <h1 className="text-5xl font-bold">Achievements</h1>
               <span className="text-sm text-gray-300">
-                {currentAvatar.name}
+                {currentAvatar.name} - Level {userLevel}
               </span>
             </div>
           </div>
