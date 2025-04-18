@@ -261,12 +261,9 @@ export default function CreateTaskForm({ onClose }) {
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
           // Create tasks for each selected day within the date range
-          // Start from i=0 to include the initial date in the loop
-          for (let i = 0; i <= daysDiff; i++) {
-            // Create a new date object for the current date in the loop
+          for (let i = 1; i <= daysDiff; i++) {
             const currentDate = new Date(startDate);
-            // Add i days to the start date to get the current date
-            currentDate.setDate(currentDate.getDate() + i);
+            currentDate.setDate(startDate.getDate() + i);
             
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -365,12 +362,9 @@ export default function CreateTaskForm({ onClose }) {
           const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
           
           // Create tasks for each selected day within the date range
-          // Start from i=0 to include the initial date in the loop
-          for (let i = 0; i <= daysDiff; i++) {
-            // Create a new date object for the current date in the loop
+          for (let i = 1; i <= daysDiff; i++) {
             const currentDate = new Date(startDate);
-            // Add i days to the start date to get the current date
-            currentDate.setDate(currentDate.getDate() + i);
+            currentDate.setDate(startDate.getDate() + i);
             
             // Check if the current day of the week is in the selected days
             const currentDayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -400,11 +394,11 @@ export default function CreateTaskForm({ onClose }) {
       setIsLoading(true);
       // Ensure taskName is not empty
       const taskData = {
-        ...updatedFormData,
+        ...formData,
         userId: user.id,
         duration: duration,
         recurring: 0,
-        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
+        taskName: formData.taskName || "Untitled Task" // Provide default name if empty
       };
       
       const response = await post('tasks.php', taskData);
@@ -771,7 +765,7 @@ export default function CreateTaskForm({ onClose }) {
             </button>
             <button
               type="button"
-              onClick={handleCancel}
+              onClick={onClose}
               disabled={isLoading}
               className="px-6 py-2 border border-[#9706e9] text-[#9706e9] rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 transition-all duration-200"
             >
