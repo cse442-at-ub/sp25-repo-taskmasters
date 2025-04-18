@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { Clock } from "lucide-react"
 import config from '../config'
 import { post } from '../utils/api'
 
@@ -696,27 +697,37 @@ export default function CreateTaskForm({ onClose }) {
               <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
                 Start Time
               </label>
-              <input
-                type="time"
-                id="startTime"
-                name="startTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.startTime}
-                onChange={handleInputChange}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  id="startTime"
+                  name="startTime"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] pr-10"
+                  value={formData.startTime}
+                  onChange={handleInputChange}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <Clock size={18} className="text-gray-500" />
+                </div>
+              </div>
             </div>
             <div>
               <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">
                 End Time
               </label>
-              <input
-                type="time"
-                id="endTime"
-                name="endTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.endTime}
-                onChange={handleInputChange}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  id="endTime"
+                  name="endTime"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] pr-10"
+                  value={formData.endTime}
+                  onChange={handleInputChange}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <Clock size={18} className="text-gray-500" />
+                </div>
+              </div>
             </div>
           </div>
 
