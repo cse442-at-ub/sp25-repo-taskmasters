@@ -208,11 +208,11 @@ const ResetPasswordPage = () => {
               </>
             )}
 
-            <button
-              type="submit"
-              disabled={isLoading || (!token && !validateEmail(email))}
-              className="w-full bg-[#9706e9] text-white py-2 px-4 rounded-md hover:bg-[#8005cc] focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+          <button
+            type="submit"
+            disabled={isLoading || (!token && (!email || !validateEmail(email)))}
+            className="w-full bg-[#9706e9] text-white py-2 px-4 rounded-md hover:bg-[#8005cc] focus:outline-none focus:ring-2 focus:ring-[#9706e9] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
               {isLoading
                 ? token
                   ? 'Resetting password...'
@@ -238,4 +238,4 @@ const ResetPasswordPage = () => {
   );
 };
 
-export default ResetPasswordPage; 
+export default ResetPasswordPage;
