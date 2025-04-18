@@ -226,18 +226,23 @@ export default function Achievements() {
               setUserPoints(data.totalPoints);
             }
             
-            // Update achievements with unlocked status
+            // Update achievements with unlocked status and progress
             if (data.achievements && Array.isArray(data.achievements)) {
               const updatedAchievements = [...achievements];
               
-              // Update each achievement with unlocked status from backend
+              // Update each achievement with data from backend
               data.achievements.forEach(backendAchievement => {
                 const index = updatedAchievements.findIndex(a => a.id === backendAchievement.id);
                 if (index !== -1) {
                   updatedAchievements[index] = {
                     ...updatedAchievements[index],
                     isUnlocked: backendAchievement.isUnlocked,
-                    unlockDate: backendAchievement.unlockDate
+                    unlockDate: backendAchievement.unlockDate,
+                    progress: backendAchievement.progress || {
+                      current: 0,
+                      target: 1,
+                      percent: 0
+                    }
                   };
                 }
               });
@@ -599,6 +604,15 @@ export default function Achievements() {
                         alt={achievement.name}
                         className="w-full h-full object-cover rounded-md transition-transform duration-200 group-hover:scale-105 brightness-90"
                       />
+                      {/* Progress bar */}
+                      {achievement.progress && (
+                        <div className="absolute top-0 left-0 right-0 bg-gray-800 h-2 z-20">
+                          <div 
+                            className="bg-[#9706e9] h-full" 
+                            style={{ width: `${achievement.progress.percent}%` }}
+                          ></div>
+                        </div>
+                      )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gray-600 py-1 text-center z-20">
                         <span className="font-mono font-bold">
                           {achievement.points}pts
@@ -673,6 +687,23 @@ export default function Achievements() {
                 <p className="text-center text-lg">
                   {previewAchievement.description}
                 </p>
+                
+                {/* Progress bar for the achievement */}
+                {previewAchievement.progress && !previewAchievement.isUnlocked && (
+                  <div className="w-full max-w-md">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Progress: {previewAchievement.progress.current}/{previewAchievement.progress.target}</span>
+                      <span>{previewAchievement.progress.percent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-4">
+                      <div 
+                        className="bg-[#9706e9] h-full rounded-full" 
+                        style={{ width: `${previewAchievement.progress.percent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+                
                 <div
                   className={`${
                     previewAchievement.isUnlocked

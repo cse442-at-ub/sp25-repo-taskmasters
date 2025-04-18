@@ -75,7 +75,18 @@ function Dashboard() {
       try {
         const userData = JSON.parse(localStorage.getItem('user'));
         if (userData && userData.id) {
-          const response = await get(`avatar.php?userId=${userData.id}`);
+          // Use direct fetch to ensure userId is properly included
+          const avatarUrl = new URL(`${config.apiUrl}/avatar.php`);
+          avatarUrl.searchParams.append('userId', userData.id);
+          
+          const response = await fetch(avatarUrl.toString(), {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+          
           if (response.ok) {
             const data = await response.json();
             console.log('Avatar data from API:', data);
@@ -164,10 +175,21 @@ function Dashboard() {
 
       console.log(`Fetching dashboard data for userId: ${userId}, date: ${today}`);
       
-      // Add retry logic for API calls
+      // Add retry logic for API calls - use direct fetch to ensure userId is included
       let dashboardResponse;
       try {
-        dashboardResponse = await get('dashboard.php', { userId, date: today });
+        // Use direct fetch to ensure userId is properly included
+        const url = new URL(`${config.apiUrl}/dashboard.php`);
+        url.searchParams.append('userId', userId);
+        url.searchParams.append('date', today);
+        
+        dashboardResponse = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         
@@ -206,7 +228,19 @@ function Dashboard() {
         console.log(
           `Also fetching tasks from tasks.php for date: ${today} and userId: ${userId}`
         );
-        const tasksResponse = await get("tasks.php", { date: today, userId });
+        
+        // Use direct fetch to ensure userId is properly included
+        const tasksUrl = new URL(`${config.apiUrl}/tasks.php`);
+        tasksUrl.searchParams.append('date', today);
+        tasksUrl.searchParams.append('userId', userId);
+        
+        const tasksResponse = await fetch(tasksUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
 
         let tasksData = [];
         if (tasksResponse.ok) {
@@ -362,12 +396,18 @@ function Dashboard() {
         throw new Error("Task not found");
       }
 
-      // Use the secure API utility for POST requests
-      const response = await post("dashboard.php", {
-        action: "completeTask",
-        taskId: taskId,
-        userId: userData.id,
-        completed: completed,
+      // Ensure we're using POST for task completion to avoid GET request issues
+      const response = await fetch(`${config.apiUrl}/dashboard.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: "completeTask",
+          taskId: taskId,
+          userId: userData.id,
+          completed: completed,
+        }),
       });
 
       if (!response.ok) {
@@ -1110,11 +1150,67 @@ function Dashboard() {
               <button
                 onClick={async () => {
                   try {
-                    // Mark task as completed
-                    await handleTaskCompletion(taskToComplete.id, true);
+                    // Get user data
+                    const userData = JSON.parse(localStorage.getItem("user"));
+                    if (!userData || !userData.id) {
+                      throw new Error("User not authenticated");
+                    }
+
+                    // Mark task as completed using direct fetch to avoid any issues
+                    const response = await fetch(`${config.apiUrl}/dashboard.php`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        action: "completeTask",
+                        taskId: taskToComplete.id,
+                        userId: userData.id,
+                        completed: true,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      const errorText = await response.text();
+                      throw new Error(`Failed to update task completion status: ${errorText}`);
+                    }
+
+                    const result = await response.json();
+                    console.log("Task completion result:", result);
+
+                    // Process the completed task in the UI
+                    if (result.success) {
+                      // Create a copy of the task with completed status
+                      const completedTaskCopy = { ...taskToComplete, completed: true };
+
+                      // Add to completed tasks
+                      setCompletedTasks(prevCompletedTasks => [
+                        ...prevCompletedTasks,
+                        completedTaskCopy
+                      ]);
+
+                      // Remove from active tasks
+                      setTasks(prevTasks => 
+                        prevTasks.filter(task => task.id !== taskToComplete.id)
+                      );
+
+                      // Show points modal if points were awarded
+                      if (result.points && result.points > 0) {
+                        setEarnedPoints(result.points);
+                        setPointsModalOpen(true);
+                      }
+
+                      // Update user level and achievements if provided
+                      if (result.level) {
+                        setUserLevel(result.level);
+                      }
+
+                      if (result.achievements) {
+                        setAchievements(result.achievements);
+                      }
+                    }
 
                     // Refresh dashboard data to ensure persistence
-                    const userData = JSON.parse(localStorage.getItem("user"));
                     if (userData && userData.id) {
                       await fetchDashboardData(userData.id);
                     }
@@ -1124,6 +1220,7 @@ function Dashboard() {
                     setTaskToComplete(null);
                   } catch (error) {
                     console.error("Error completing task:", error);
+                    alert(`Error: ${error.message}`);
                   }
                 }}
                 className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"

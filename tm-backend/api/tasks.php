@@ -374,6 +374,71 @@ try {
             throw new Exception("No input received");
         }
 
+        // Check if this is a "complete task" action
+        if (isset($data->action) && $data->action === 'complete') {
+            if (!isset($data->taskId) || !isset($data->userId)) {
+                http_response_code(400);
+                echo json_encode(array("message" => "Task ID and User ID are required"));
+                exit;
+            }
+            
+            $taskId = $data->taskId;
+            $userId = $data->userId;
+            
+            // Check if the task exists and belongs to the user
+            $checkQuery = "SELECT * FROM tasks WHERE task_id = :taskId AND user_id = :userId";
+            $checkStmt = $db->prepare($checkQuery);
+            $checkStmt->bindParam(":taskId", $taskId);
+            $checkStmt->bindParam(":userId", $userId);
+            $checkStmt->execute();
+            
+            if ($checkStmt->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(array("message" => "Task not found or does not belong to the user"));
+                exit;
+            }
+            
+            // Mark task as completed in the tasks table
+            $updateQuery = "UPDATE tasks SET completed = 1 WHERE task_id = :taskId AND user_id = :userId";
+            $updateStmt = $db->prepare($updateQuery);
+            $updateStmt->bindParam(":taskId", $taskId);
+            $updateStmt->bindParam(":userId", $userId);
+            $updateStmt->execute();
+            
+            // Insert into completed_tasks table
+            $insertQuery = "INSERT INTO completed_tasks (user_id, task_id, completed_date) 
+                           VALUES (:userId, :taskId, NOW())
+                           ON DUPLICATE KEY UPDATE completed_date = NOW()";
+            $insertStmt = $db->prepare($insertQuery);
+            $insertStmt->bindParam(":userId", $userId);
+            $insertStmt->bindParam(":taskId", $taskId);
+            $insertStmt->execute();
+            
+            // Check for achievements
+            include_once '../scripts/check_all_achievements.php';
+            
+            try {
+                // Check achievements for the user
+                $achievementResult = checkAllAchievements($db, $userId);
+                
+                // Return success with achievement info
+                http_response_code(200);
+                echo json_encode(array(
+                    "message" => "Task marked as completed",
+                    "achievements" => $achievementResult
+                ));
+            } catch (Exception $e) {
+                // If there's an error checking achievements, still mark the task as completed
+                http_response_code(200);
+                echo json_encode(array(
+                    "message" => "Task marked as completed",
+                    "achievementError" => $e->getMessage()
+                ));
+            }
+            
+            exit;
+        }
+
         if (!isset($data->taskId) || !isset($data->userId)) {
             http_response_code(400);
             echo json_encode(array("message" => "Task ID and User ID are required"));

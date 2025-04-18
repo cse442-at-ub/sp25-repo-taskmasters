@@ -1,190 +1,90 @@
 <?php
-// Script to update achievements in the database to match the frontend
+/**
+ * Update Achievements
+ * 
+ * This script updates achievement progress for all users and unlocks achievements
+ * that meet the criteria. It can be run as a cron job to periodically update achievements.
+ * 
+ * Usage: php update_achievements.php
+ */
 
 // Include database configuration
 include_once '../config/database.php';
+include_once '../api/achievements.php';
 
 try {
+    echo "Updating achievements for all users...\n";
+    
+    // Create database connection
     $database = new Database();
     $db = $database->getConnection();
     
-    echo "Connected to database successfully.\n";
-    
-    // Check if achievements table exists
-    $query = "SHOW TABLES LIKE 'achievements'";
+    // Get all users
+    $query = "SELECT user_id, username FROM users";
     $stmt = $db->prepare($query);
     $stmt->execute();
-    $achievementsTableExists = $stmt->rowCount() > 0;
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    if (!$achievementsTableExists) {
-        echo "Creating achievements table...\n";
-        
-        $query = "CREATE TABLE achievements (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            description VARCHAR(255) NOT NULL,
-            icon VARCHAR(255) NOT NULL,
-            points INT NOT NULL DEFAULT 100,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )";
-        $db->exec($query);
-        
-        echo "Achievements table created successfully.\n";
-    } else {
-        echo "Achievements table already exists.\n";
-        
-        // Clear existing achievements to avoid duplicates
-        echo "Clearing existing achievements...\n";
-        $query = "TRUNCATE TABLE achievements";
-        $db->exec($query);
-        
-        echo "Existing achievements cleared.\n";
+    if (count($users) === 0) {
+        echo "No users found.\n";
+        exit;
     }
     
-    // Check if user_achievements table exists
-    $query = "SHOW TABLES LIKE 'user_achievements'";
-    $stmt = $db->prepare($query);
-    $stmt->execute();
-    $userAchievementsTableExists = $stmt->rowCount() > 0;
+    echo "Found " . count($users) . " users.\n";
     
-    if (!$userAchievementsTableExists) {
-        echo "Creating user_achievements table...\n";
+    // Check achievements for each user
+    foreach ($users as $user) {
+        $userId = $user['user_id'];
+        $username = $user['username'];
         
-        $query = "CREATE TABLE user_achievements (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            achievement_id INT NOT NULL,
-            unlocked_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_user_achievement (user_id, achievement_id)
-        )";
-        $db->exec($query);
+        echo "Checking achievements for user $username (ID: $userId)...\n";
         
-        echo "User achievements table created successfully.\n";
-    } else {
-        echo "User achievements table already exists.\n";
+        // Check all achievements for the user
+        $result = checkAllAchievements($db, $userId);
+        
+        echo "Updated " . count($result['updatedProgress']) . " achievement progress records.\n";
+        
+        if (count($result['unlockedAchievements']) > 0) {
+            echo "Unlocked " . count($result['unlockedAchievements']) . " achievements:\n";
+            foreach ($result['unlockedAchievements'] as $achievement) {
+                echo "- " . $achievement['name'] . " (" . $achievement['points'] . " points)\n";
+                
+                // Insert into achievement_notifications table if it exists
+                $query = "SHOW TABLES LIKE 'achievement_notifications'";
+                $stmt = $db->prepare($query);
+                $stmt->execute();
+                $tableExists = $stmt->rowCount() > 0;
+                
+                if ($tableExists) {
+                    // Check if notification already exists
+                    $query = "SELECT id FROM achievement_notifications 
+                             WHERE user_id = :userId AND achievement_id = :achievementId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->bindParam(':achievementId', $achievement['id']);
+                    $stmt->execute();
+                    
+                    if ($stmt->rowCount() === 0) {
+                        // Insert new notification
+                        $query = "INSERT INTO achievement_notifications (user_id, achievement_id, notified) 
+                                 VALUES (:userId, :achievementId, 0)";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->bindParam(':achievementId', $achievement['id']);
+                        $stmt->execute();
+                        
+                        echo "  Added notification for achievement " . $achievement['name'] . "\n";
+                    }
+                }
+            }
+        } else {
+            echo "No new achievements unlocked.\n";
+        }
+        
+        echo "\n";
     }
     
-    // Insert achievements from frontend
-    echo "Inserting achievements from frontend...\n";
-    
-    $achievements = [
-        [
-            'id' => 1,
-            'name' => 'First Task',
-            'description' => 'Complete your first task',
-            'icon' => 'FirstTask.png',
-            'points' => 100
-        ],
-        [
-            'id' => 2,
-            'name' => 'Task Streak',
-            'description' => 'Complete tasks for 7 days in a row',
-            'icon' => 'TaskStreak.png',
-            'points' => 500
-        ],
-        [
-            'id' => 3,
-            'name' => 'Early Bird',
-            'description' => 'Complete 5 tasks before 9 AM',
-            'icon' => 'EarlyBird.png',
-            'points' => 300
-        ],
-        [
-            'id' => 4,
-            'name' => 'Night Owl',
-            'description' => 'Complete 5 tasks after 10 PM',
-            'icon' => 'NightOwl.png',
-            'points' => 300
-        ],
-        [
-            'id' => 5,
-            'name' => 'Task Master',
-            'description' => 'Complete 50 tasks in total',
-            'icon' => 'TaskMaster.png',
-            'points' => 1000
-        ],
-        [
-            'id' => 6,
-            'name' => 'Perfect Week',
-            'description' => 'Complete all tasks in a week',
-            'icon' => 'PerfectWeek.png',
-            'points' => 800
-        ],
-        [
-            'id' => 7,
-            'name' => 'Big Spender',
-            'description' => 'Buy 5 avatars',
-            'icon' => 'BigSpender.png',
-            'points' => 400
-        ],
-        [
-            'id' => 8,
-            'name' => 'Time Manager',
-            'description' => 'Complete 10 tasks on time',
-            'icon' => 'TimeManager.png',
-            'points' => 600
-        ],
-        [
-            'id' => 9,
-            'name' => 'Task Explorer',
-            'description' => 'Create tasks in 5 different categories',
-            'icon' => 'TaskExplorer.png',
-            'points' => 400
-        ],
-        [
-            'id' => 10,
-            'name' => 'Achievement Hunter',
-            'description' => 'Unlock 5 achievements',
-            'icon' => 'AchievementHunter.png',
-            'points' => 1000
-        ],
-        // Add the achievements from the test cases
-        [
-            'id' => 11,
-            'name' => 'Consistent Student',
-            'description' => 'Complete 5 school-related tasks',
-            'icon' => 'FirstTask.png', // Using a placeholder icon
-            'points' => 300
-        ],
-        [
-            'id' => 12,
-            'name' => 'Dedicated Worker',
-            'description' => 'Complete 3 Work tasks',
-            'icon' => 'TaskStreak.png', // Using a placeholder icon
-            'points' => 300
-        ],
-        [
-            'id' => 13,
-            'name' => 'Daily Task Master',
-            'description' => 'Complete 3+ tasks in one day',
-            'icon' => 'TaskMaster.png', // Using a placeholder icon
-            'points' => 300
-        ]
-    ];
-    
-    foreach ($achievements as $achievement) {
-        $query = "INSERT INTO achievements (id, name, description, icon, points) 
-                 VALUES (:id, :name, :description, :icon, :points)";
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(':id', $achievement['id']);
-        $stmt->bindParam(':name', $achievement['name']);
-        $stmt->bindParam(':description', $achievement['description']);
-        $stmt->bindParam(':icon', $achievement['icon']);
-        $stmt->bindParam(':points', $achievement['points']);
-        $stmt->execute();
-        
-        echo "Inserted achievement: " . $achievement['name'] . "\n";
-    }
-    
-    echo "All achievements inserted successfully.\n";
-    
-    // Update the auto-increment value to avoid conflicts
-    $query = "ALTER TABLE achievements AUTO_INCREMENT = " . (count($achievements) + 1);
-    $db->exec($query);
-    
-    echo "Auto-increment value updated.\n";
-    
-    echo "Script completed successfully.\n";
+    echo "Achievement update completed.\n";
     
 } catch (PDOException $e) {
     echo "Database error: " . $e->getMessage() . "\n";

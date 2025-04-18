@@ -72,12 +72,16 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
         throw new Error("User not logged in");
       }
 
-      // Fetch all tasks for the selected date
-      const response = await fetch(`${config.apiUrl}/tasks.php?date=${selectedDate}&userId=${user.id}`, {
+      // Fetch all tasks for the selected date - use URL constructor to ensure userId is properly included
+      const url = new URL(`${config.apiUrl}/tasks.php`);
+      url.searchParams.append('date', selectedDate);
+      url.searchParams.append('userId', user.id);
+      
+      const response = await fetch(url.toString(), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
+          "Accept": "application/json",
         },
       });
 
@@ -289,16 +293,20 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
         throw new Error("User not logged in");
       }
 
-      // Send DELETE request with taskId as URL parameter
-      const url = deleteAllRecurring 
-        ? `${config.apiUrl}/tasks.php?task_id=${taskId}&deleteRecurring=true` 
-        : `${config.apiUrl}/tasks.php?task_id=${taskId}`;
-        
-      const response = await fetch(url, {
+      // Send DELETE request with taskId as URL parameter - use URL constructor to ensure parameters are properly included
+      const url = new URL(`${config.apiUrl}/tasks.php`);
+      url.searchParams.append('task_id', taskId);
+      url.searchParams.append('userId', user.id);
+      
+      if (deleteAllRecurring) {
+        url.searchParams.append('deleteRecurring', 'true');
+      }
+      
+      const response = await fetch(url.toString(), {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
+          "Accept": "application/json",
         }
       });
 
@@ -316,6 +324,53 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
     }
   };
 
+  const handleCompleteTask = async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (!user) {
+        throw new Error("User not logged in");
+      }
+
+      // Send PUT request to mark task as completed - use direct fetch to ensure proper handling
+      const response = await fetch(`${config.apiUrl}/tasks.php`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          action: 'complete',
+          taskId: taskId,
+          userId: user.id
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Check if any achievements were unlocked
+        if (data.achievements && data.achievements.unlockedAchievements && data.achievements.unlockedAchievements.length > 0) {
+          // Show achievement notification
+          const achievementNames = data.achievements.unlockedAchievements
+            .map(a => a.name)
+            .join(', ');
+          
+          alert(`Task completed! You unlocked ${data.achievements.unlockedAchievements.length} achievement(s): ${achievementNames}`);
+        } else {
+          alert("Task completed successfully!");
+        }
+        
+        if (onTaskUpdated) onTaskUpdated();
+        onClose();
+      } else {
+        setError(data.message || "Failed to complete task");
+      }
+    } catch (error) {
+      console.error("Error completing task:", error);
+      setError(error.message || "Failed to complete task");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -329,11 +384,12 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
       const endTime = new Date(`2000/01/01 ${formData.endTime}`);
       const duration = Math.round((endTime - startTime) / (1000 * 60));
 
+      // Use direct fetch to ensure proper handling
       const response = await fetch(`${config.apiUrl}/tasks.php`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify({
           ...formData,
@@ -609,6 +665,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={handleCompleteTask}
+                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200"
+                >
+                  Complete Task
+                </button>
                 <button
                   type="button"
                   onClick={handleEdit}

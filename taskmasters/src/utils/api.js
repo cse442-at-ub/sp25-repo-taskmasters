@@ -31,7 +31,7 @@ export const apiRequest = async (url, options = {}) => {
   const response = await fetch(url, {
     ...options,
     headers,
-    credentials: 'omit', // Changed from 'include' to 'omit' to match the existing login implementation
+    credentials: 'include', // Changed from 'include' to 'omit' to match the existing login implementation
     mode: 'cors'
   });
   

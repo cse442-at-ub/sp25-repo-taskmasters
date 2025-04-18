@@ -37,7 +37,8 @@ function sanitizeInput($data) {
 
 // Function to generate a secure random token
 function generateToken() {
-    return bin2hex(random_bytes(32));
+    // Generate a token that's URL-safe
+    return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
 }
 
 // Include the EmailSender class
@@ -61,10 +62,17 @@ function sendResetEmail($email, $token) {
 error_log("Password reset request received");
 
 try {
-    // Verify request method
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        throw new Exception("Invalid request method");
-    }
+// Verify request method
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
+    error_log("Invalid request method: " . $_SERVER['REQUEST_METHOD']);
+    throw new Exception("Invalid request method");
+}
+
+// Handle OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
     
     $database = new Database();
     $db = $database->getConnection();
@@ -112,8 +120,8 @@ try {
         $token = generateToken();
         error_log("Generated token: " . substr($token, 0, 10) . "...");
         
-        $expiryTime = date('Y-m-d H:i:s', strtotime('+1 hour'));
-        error_log("Token expiry time: " . $expiryTime);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+        error_log("Token expiry time: " . $expiresAt);
         
         try {
             // Check if a reset token already exists for this user
@@ -126,11 +134,11 @@ try {
                 error_log("Existing token found, updating");
                 // Update existing token
                 $updateQuery = "UPDATE password_reset_tokens 
-                               SET token = :token, expiry_time = :expiry_time, created_at = NOW() 
+                               SET token = :token, expires_at = :expires_at, created_at = NOW() 
                                WHERE user_id = :user_id";
                 $updateStmt = $db->prepare($updateQuery);
                 $updateStmt->bindParam(":token", $token);
-                $updateStmt->bindParam(":expiry_time", $expiryTime);
+                $updateStmt->bindParam(":expires_at", $expiresAt);
                 $updateStmt->bindParam(":user_id", $userExists['user_id']);
                 $updateResult = $updateStmt->execute();
                 
@@ -142,12 +150,12 @@ try {
             } else {
                 error_log("No existing token, creating new one");
                 // Insert new token
-                $insertQuery = "INSERT INTO password_reset_tokens (user_id, token, expiry_time) 
-                               VALUES (:user_id, :token, :expiry_time)";
+                $insertQuery = "INSERT INTO password_reset_tokens (user_id, token, expires_at) 
+                               VALUES (:user_id, :token, :expires_at)";
                 $insertStmt = $db->prepare($insertQuery);
                 $insertStmt->bindParam(":user_id", $userExists['user_id']);
                 $insertStmt->bindParam(":token", $token);
-                $insertStmt->bindParam(":expiry_time", $expiryTime);
+                $insertStmt->bindParam(":expires_at", $expiresAt);
                 $insertResult = $insertStmt->execute();
                 
                 if (!$insertResult) {

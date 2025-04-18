@@ -6,7 +6,7 @@ include_once '../config/database.php';
 include_once '../api/achievements.php';
 
 /**
- * Check all achievements for a user and unlock them if criteria are met
+ * Check all achievements for a user, update progress, and unlock them if criteria are met
  * 
  * @param PDO $db Database connection
  * @param int $userId User ID
@@ -15,6 +15,7 @@ include_once '../api/achievements.php';
 function checkAllAchievements($db, $userId) {
     try {
         $unlockedAchievements = [];
+        $updatedProgress = [];
         
         // Get all achievements
         $query = "SELECT * FROM achievements";
@@ -29,58 +30,213 @@ function checkAllAchievements($db, $userId) {
         $stmt->execute();
         $userAchievements = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
+        // Ensure achievement_progress table exists
+        $query = "SHOW TABLES LIKE 'achievement_progress'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $achievementProgressTableExists = $stmt->rowCount() > 0;
+        
+        if (!$achievementProgressTableExists) {
+            echo "Achievement progress table does not exist. Run create_achievement_progress_table.php first.\n";
+        }
+        
         foreach ($allAchievements as $achievement) {
             // Skip if already unlocked
-            if (in_array($achievement['id'], $userAchievements)) {
-                continue;
-            }
+            $isUnlocked = in_array($achievement['id'], $userAchievements);
             
-            // Check if achievement should be unlocked based on its description
-            $shouldUnlock = false;
+            // Get current progress for this achievement
+            $currentValue = 0;
+            $targetValue = 1; // Default
             
+            // Determine target value and calculate current progress based on achievement type
             switch ($achievement['name']) {
                 case 'First Task':
-                    $shouldUnlock = checkFirstTaskAchievement($db, $userId);
+                    $targetValue = 1;
+                    // Check if user has completed any tasks
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], 1);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Task Streak':
+                    $targetValue = 7;
+                    // This is complex to calculate, we'll just check if it should be unlocked
                     $shouldUnlock = checkTaskStreakAchievement($db, $userId);
+                    $currentValue = $shouldUnlock ? $targetValue : 0;
                     break;
+                    
                 case 'Early Bird':
-                    $shouldUnlock = checkEarlyBirdAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count tasks completed before 9 AM
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                             JOIN tasks t ON ct.task_id = t.task_id 
+                             WHERE ct.user_id = :userId AND TIME(t.Task_time) < '09:00:00'";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Night Owl':
-                    $shouldUnlock = checkNightOwlAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count tasks completed after 10 PM
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                             JOIN tasks t ON ct.task_id = t.task_id 
+                             WHERE ct.user_id = :userId AND TIME(t.Task_time) >= '22:00:00'";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Task Master':
-                    $shouldUnlock = checkTaskMasterAchievement($db, $userId);
+                    $targetValue = 50;
+                    // Count total completed tasks
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Perfect Week':
+                    $targetValue = 1;
+                    // This is complex to calculate, we'll just check if it should be unlocked
                     $shouldUnlock = checkPerfectWeekAchievement($db, $userId);
+                    $currentValue = $shouldUnlock ? $targetValue : 0;
                     break;
+                    
                 case 'Big Spender':
-                    $shouldUnlock = checkBigSpenderAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count purchased avatars
+                    $query = "SELECT COUNT(*) as count FROM user_avatars WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Time Manager':
-                    $shouldUnlock = checkTimeManagerAchievement($db, $userId);
+                    $targetValue = 10;
+                    // Count completed tasks (assuming all are on time)
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Task Explorer':
-                    $shouldUnlock = checkTaskExplorerAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count distinct task categories
+                    $query = "SELECT COUNT(DISTINCT task_tags) as count FROM tasks 
+                             WHERE user_id = :userId AND task_tags != ''";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Achievement Hunter':
-                    $shouldUnlock = checkAchievementHunterAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count unlocked achievements
+                    $query = "SELECT COUNT(*) as count FROM user_achievements WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Consistent Student':
-                    $shouldUnlock = checkConsistentStudentAchievement($db, $userId);
+                    $targetValue = 5;
+                    // Count completed school tasks
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                             JOIN tasks t ON ct.task_id = t.task_id 
+                             WHERE ct.user_id = :userId AND t.task_tags = 'School'";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Dedicated Worker':
-                    $shouldUnlock = checkDedicatedWorkerAchievement($db, $userId);
+                    $targetValue = 3;
+                    // Count completed work tasks
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                             JOIN tasks t ON ct.task_id = t.task_id 
+                             WHERE ct.user_id = :userId AND t.task_tags = 'Work'";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $currentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $targetValue);
+                    $shouldUnlock = $currentValue >= $targetValue;
                     break;
+                    
                 case 'Daily Task Master':
+                    $targetValue = 3;
+                    // This is complex to calculate, we'll just check if it should be unlocked
                     $shouldUnlock = checkDailyTaskMasterAchievement($db, $userId);
+                    $currentValue = $shouldUnlock ? $targetValue : 0;
                     break;
+                    
                 default:
                     // Unknown achievement, skip
                     continue 2;
+            }
+            
+            // If achievement is already unlocked, set current value to target value
+            if ($isUnlocked) {
+                $currentValue = $targetValue;
+                $shouldUnlock = false; // No need to unlock again
+            }
+            
+            // Update achievement progress in the database if the table exists
+            if ($achievementProgressTableExists) {
+                // Check if progress record exists
+                $query = "SELECT id FROM achievement_progress 
+                         WHERE user_id = :userId AND achievement_id = :achievementId";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':achievementId', $achievement['id']);
+                $stmt->execute();
+                
+                if ($stmt->rowCount() > 0) {
+                    // Update existing record
+                    $query = "UPDATE achievement_progress 
+                             SET current_value = :currentValue, target_value = :targetValue 
+                             WHERE user_id = :userId AND achievement_id = :achievementId";
+                } else {
+                    // Insert new record
+                    $query = "INSERT INTO achievement_progress 
+                             (user_id, achievement_id, current_value, target_value) 
+                             VALUES (:userId, :achievementId, :currentValue, :targetValue)";
+                }
+                
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':achievementId', $achievement['id']);
+                $stmt->bindParam(':currentValue', $currentValue);
+                $stmt->bindParam(':targetValue', $targetValue);
+                $stmt->execute();
+                
+                $updatedProgress[] = [
+                    'achievement_id' => $achievement['id'],
+                    'name' => $achievement['name'],
+                    'current_value' => $currentValue,
+                    'target_value' => $targetValue,
+                    'percent' => $targetValue > 0 ? round(($currentValue / $targetValue) * 100) : 0
+                ];
             }
             
             if ($shouldUnlock) {
@@ -94,7 +250,8 @@ function checkAllAchievements($db, $userId) {
         
         return [
             'success' => true,
-            'unlockedAchievements' => $unlockedAchievements
+            'unlockedAchievements' => $unlockedAchievements,
+            'updatedProgress' => $updatedProgress
         ];
     } catch (Exception $e) {
         error_log("Error checking all achievements: " . $e->getMessage());

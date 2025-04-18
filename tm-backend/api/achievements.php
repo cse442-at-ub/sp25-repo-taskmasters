@@ -194,6 +194,45 @@ function ensureAchievementsTablesExist($db) {
 
 function getUserAchievementsData($db, $userId) {
     try {
+        error_log("Getting achievement data for user ID: $userId");
+        
+        // Ensure user_points table exists
+        $query = "SHOW TABLES LIKE 'user_points'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $userPointsTableExists = $stmt->rowCount() > 0;
+        
+        if (!$userPointsTableExists) {
+            error_log("Creating user_points table");
+            $query = "CREATE TABLE user_points (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                total_points INT NOT NULL DEFAULT 0,
+                level INT NOT NULL DEFAULT 1,
+                UNIQUE KEY unique_user_id (user_id)
+            )";
+            $db->exec($query);
+        }
+        
+        // Ensure achievement_progress table exists
+        $query = "SHOW TABLES LIKE 'achievement_progress'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $achievementProgressTableExists = $stmt->rowCount() > 0;
+        
+        if (!$achievementProgressTableExists) {
+            error_log("Creating achievement_progress table");
+            $query = "CREATE TABLE achievement_progress (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                achievement_id INT NOT NULL,
+                current_value INT NOT NULL DEFAULT 0,
+                target_value INT NOT NULL DEFAULT 1,
+                UNIQUE KEY unique_user_achievement (user_id, achievement_id)
+            )";
+            $db->exec($query);
+        }
+        
         // Get user's current avatar
         $query = "SELECT a.avatar_id, a.name, a.image_url 
                  FROM user_avatars ua 
@@ -210,6 +249,18 @@ function getUserAchievementsData($db, $userId) {
             $stmt = $db->prepare($query);
             $stmt->execute();
             $currentAvatar = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$currentAvatar) {
+                // Create a default avatar if none exists
+                error_log("No default avatar found, creating one");
+                $query = "INSERT INTO avatars (name, image_url, is_default) VALUES ('Default Avatar', 'Level1Avatar.png', 1)";
+                $db->exec($query);
+                
+                $query = "SELECT avatar_id, name, image_url FROM avatars WHERE is_default = 1 LIMIT 1";
+                $stmt = $db->prepare($query);
+                $stmt->execute();
+                $currentAvatar = $stmt->fetch(PDO::FETCH_ASSOC);
+            }
         }
         
         // Get user's total points
@@ -220,6 +271,13 @@ function getUserAchievementsData($db, $userId) {
         $userPoints = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$userPoints) {
+            // Create user points record if it doesn't exist
+            error_log("Creating user points record for user $userId");
+            $query = "INSERT INTO user_points (user_id, total_points, level) VALUES (:userId, 0, 1)";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->execute();
+            
             $userPoints = [
                 'total_points' => 0,
                 'level' => 1
@@ -242,13 +300,31 @@ function getUserAchievementsData($db, $userId) {
         $stmt->execute();
         $unlockedAchievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // Get user's achievement progress
+        $query = "SELECT achievement_id, current_value, target_value 
+                 FROM achievement_progress 
+                 WHERE user_id = :userId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->execute();
+        $achievementProgress = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Create a map of achievement progress for easy lookup
+        $progressMap = [];
+        foreach ($achievementProgress as $progress) {
+            $progressMap[$progress['achievement_id']] = [
+                'current' => $progress['current_value'],
+                'target' => $progress['target_value']
+            ];
+        }
+        
         // Create a map of unlocked achievement IDs for easy lookup
         $unlockedAchievementIds = [];
         foreach ($unlockedAchievements as $achievement) {
             $unlockedAchievementIds[$achievement['id']] = true;
         }
         
-        // Format all achievements with unlocked status
+        // Format all achievements with unlocked status and progress
         $formattedAchievements = [];
         foreach ($allAchievements as $achievement) {
             $isUnlocked = isset($unlockedAchievementIds[$achievement['id']]);
@@ -264,6 +340,164 @@ function getUserAchievementsData($db, $userId) {
                 }
             }
             
+            // Get progress for this achievement
+            $progress = isset($progressMap[$achievement['id']]) ? $progressMap[$achievement['id']] : null;
+            $currentValue = $progress ? $progress['current'] : 0;
+            $targetValue = $progress ? $progress['target'] : 1;
+            
+            // If achievement is unlocked, set current value to target value
+            if ($isUnlocked) {
+                $currentValue = $targetValue;
+            }
+            
+            // Calculate progress percentage
+            $progressPercent = $targetValue > 0 ? round(($currentValue / $targetValue) * 100) : 0;
+            
+            // If no progress record exists for this achievement, create one
+            if (!$progress && !$isUnlocked) {
+                // Calculate default target value based on achievement type
+                $defaultTargetValue = 1;
+                $defaultCurrentValue = 0;
+                
+                switch ($achievement['name']) {
+                    case 'First Task':
+                        $defaultTargetValue = 1;
+                        // Check if user has completed any tasks
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], 1);
+                        break;
+                        
+                    case 'Task Streak':
+                        $defaultTargetValue = 7;
+                        break;
+                        
+                    case 'Early Bird':
+                        $defaultTargetValue = 5;
+                        // Count tasks completed before 9 AM
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                                 JOIN tasks t ON ct.task_id = t.task_id 
+                                 WHERE ct.user_id = :userId AND TIME(t.Task_time) < '09:00:00'";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Night Owl':
+                        $defaultTargetValue = 5;
+                        // Count tasks completed after 10 PM
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                                 JOIN tasks t ON ct.task_id = t.task_id 
+                                 WHERE ct.user_id = :userId AND TIME(t.Task_time) >= '22:00:00'";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Task Master':
+                        $defaultTargetValue = 50;
+                        // Count total completed tasks
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Perfect Week':
+                        $defaultTargetValue = 1;
+                        break;
+                        
+                    case 'Big Spender':
+                        $defaultTargetValue = 5;
+                        // Count purchased avatars
+                        $query = "SELECT COUNT(*) as count FROM user_avatars WHERE user_id = :userId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Time Manager':
+                        $defaultTargetValue = 10;
+                        // Count completed tasks (assuming all are on time)
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Task Explorer':
+                        $defaultTargetValue = 5;
+                        // Count distinct task categories
+                        $query = "SELECT COUNT(DISTINCT task_tags) as count FROM tasks 
+                                 WHERE user_id = :userId AND task_tags != ''";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Achievement Hunter':
+                        $defaultTargetValue = 5;
+                        // Count unlocked achievements
+                        $query = "SELECT COUNT(*) as count FROM user_achievements WHERE user_id = :userId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Consistent Student':
+                        $defaultTargetValue = 5;
+                        // Count completed school tasks
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                                 JOIN tasks t ON ct.task_id = t.task_id 
+                                 WHERE ct.user_id = :userId AND t.task_tags = 'School'";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Dedicated Worker':
+                        $defaultTargetValue = 3;
+                        // Count completed work tasks
+                        $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                                 JOIN tasks t ON ct.task_id = t.task_id 
+                                 WHERE ct.user_id = :userId AND t.task_tags = 'Work'";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->execute();
+                        $defaultCurrentValue = min($stmt->fetch(PDO::FETCH_ASSOC)['count'], $defaultTargetValue);
+                        break;
+                        
+                    case 'Daily Task Master':
+                        $defaultTargetValue = 3;
+                        break;
+                }
+                
+                // Create progress record
+                $query = "INSERT INTO achievement_progress (user_id, achievement_id, current_value, target_value) 
+                         VALUES (:userId, :achievementId, :currentValue, :targetValue)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':achievementId', $achievement['id']);
+                $stmt->bindParam(':currentValue', $defaultCurrentValue);
+                $stmt->bindParam(':targetValue', $defaultTargetValue);
+                $stmt->execute();
+                
+                // Update current and target values
+                $currentValue = $defaultCurrentValue;
+                $targetValue = $defaultTargetValue;
+                $progressPercent = $targetValue > 0 ? round(($currentValue / $targetValue) * 100) : 0;
+            }
+            
             $formattedAchievements[] = [
                 'id' => $achievement['id'],
                 'name' => $achievement['name'],
@@ -271,11 +505,16 @@ function getUserAchievementsData($db, $userId) {
                 'points' => $achievement['points'],
                 'isUnlocked' => $isUnlocked,
                 'unlockDate' => $unlockDate,
-                'image' => $achievement['icon']
+                'image' => $achievement['icon'],
+                'progress' => [
+                    'current' => $currentValue,
+                    'target' => $targetValue,
+                    'percent' => $progressPercent
+                ]
             ];
         }
         
-        return [
+        $result = [
             'currentAvatar' => $currentAvatar,
             'totalPoints' => $userPoints['total_points'],
             'level' => $userPoints['level'],
@@ -283,6 +522,10 @@ function getUserAchievementsData($db, $userId) {
             'unlockedCount' => count($unlockedAchievements),
             'totalCount' => count($allAchievements)
         ];
+        
+        error_log("Returning achievement data: " . json_encode($result));
+        
+        return $result;
     } catch (Exception $e) {
         error_log("Error getting user achievements data: " . $e->getMessage());
         throw $e;

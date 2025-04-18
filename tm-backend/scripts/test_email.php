@@ -1,38 +1,30 @@
 <?php
 /**
- * Test Email Sending
+ * Test Email
  * 
- * This script tests the email sending functionality by sending a test email
- * to the specified email address using the configured email settings.
+ * This script tests the email configuration by sending a test email.
  * 
- * Usage: php test_email.php recipient@example.com
+ * Usage: php test_email.php [recipient_email]
  */
 
-// Include the EmailSender class
-require_once '../utils/EmailSender.php';
+// Include email configuration
+include_once '../config/email_config.php';
+include_once '../utils/EmailSender.php';
 
-// Check if email is provided
-if ($argc < 2) {
-    echo "Usage: php test_email.php recipient@example.com\n";
-    exit(1);
-}
+// Get recipient email from command line argument or use default
+$recipientEmail = isset($argv[1]) ? $argv[1] : 'test@example.com';
 
-$email = $argv[1];
+echo "Testing email configuration...\n";
+echo "Recipient email: $recipientEmail\n";
 
-// Validate email format
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    echo "Error: Invalid email format\n";
-    exit(1);
-}
+// Email subject
+$subject = "TaskMasters Test Email";
 
-echo "Sending test email to $email...\n";
-
-// Send a test email
-$subject = "TaskMasters Email Test";
+// Email content with HTML
 $htmlBody = "
 <html>
 <head>
-    <title>TaskMasters Email Test</title>
+    <title>TaskMasters Test Email</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -47,9 +39,10 @@ $htmlBody = "
             <h1>TaskMasters</h1>
         </div>
         <div class='content'>
-            <h2>Email Test</h2>
-            <p>This is a test email from TaskMasters to verify that the email sending functionality is working correctly.</p>
-            <p>If you received this email, it means that the email configuration is set up correctly!</p>
+            <h2>Test Email</h2>
+            <p>This is a test email from TaskMasters.</p>
+            <p>If you received this email, the email configuration is working correctly.</p>
+            <p>You can now use the password reset functionality.</p>
         </div>
         <div class='footer'>
             <p>TaskMasters - Organize your tasks efficiently</p>
@@ -60,11 +53,11 @@ $htmlBody = "
 ";
 
 // Send the email
-$result = EmailSender::sendHtmlEmail($email, $subject, $htmlBody);
+$result = EmailSender::sendHtmlEmail($recipientEmail, $subject, $htmlBody);
 
 if ($result) {
-    echo "Test email sent successfully!\n";
+    echo "Email sent successfully to $recipientEmail.\n";
 } else {
-    echo "Failed to send test email. Check the error logs for more information.\n";
+    echo "Failed to send email to $recipientEmail.\n";
 }
 ?>
