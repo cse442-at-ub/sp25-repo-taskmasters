@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
 import { useNavigate } from "react-router-dom";
+import ICSUploader from "./ICSUploader";
 
 import {
   ChevronLeft,
@@ -230,6 +231,12 @@ export default function WeekView() {
     );
   };
 
+  // Add this function to handle ICS uploads
+  const handleUploadComplete = (result) => {
+    // Refresh the tasks after successful upload
+    fetchTasks();
+  };
+
   return (
     <React.Fragment>
       <div className="flex flex-col md:flex-row h-screen w-full">
@@ -356,13 +363,16 @@ export default function WeekView() {
                 </button>
               </div>
             </div>
-            <button
-              onClick={handleAddTask}
-              className="bg-[#9706e9] text-white px-4 py-2 md:px-6 md:py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <PlusCircle size={18} />
-              <span>Add Task</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <ICSUploader onUploadComplete={handleUploadComplete} />
+              <button
+                onClick={handleAddTask}
+                className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <PlusCircle size={20} />
+                <span>Add Task</span>
+              </button>
+            </div>
           </div>
 
           {/* View Toggle */}

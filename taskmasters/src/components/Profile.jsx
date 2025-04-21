@@ -285,28 +285,20 @@ export default function Profile() {
       setErrorMessage("");
       setSuccessMessage("");
 
-      // Validate inputs
-      if (!updateData.email) {
-        setErrorMessage("Email is required");
-        return;
-      } else if (!/\S+@\S+\.\S+/.test(updateData.email)) {
-        setErrorMessage(
-          "Please enter a valid email address (e.g., user@example.com)"
-        );
+      // Password validation only if user is trying to change password
+      if (!updateData.newPassword) {
+        setErrorMessage("Please enter a new password to update your profile");
         return;
       }
 
-      // Password validation only if user is trying to change password
-      if (updateData.newPassword) {
-        if (!updateData.currentPassword) {
-          setErrorMessage("Current password is required to set a new password");
-          return;
-        }
+      if (!updateData.currentPassword) {
+        setErrorMessage("Current password is required to set a new password");
+        return;
+      }
 
-        if (!isPasswordValid()) {
-          setErrorMessage("Password does not meet the requirements");
-          return;
-        }
+      if (!isPasswordValid()) {
+        setErrorMessage("Password does not meet the requirements");
+        return;
       }
 
       const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -315,54 +307,65 @@ export default function Profile() {
         return;
       }
 
-      // Prepare data for API
+      // Prepare data for API - only for password changes
       const updatePayload = {
         userId: storedUser.id,
-        email: updateData.email,
+        email: userData.email, // Send current email, not allowing changes
+        currentPassword: updateData.currentPassword,
+        newPassword: updateData.newPassword,
       };
 
-      // Only include password fields if user is updating password
-      if (updateData.newPassword) {
-        updatePayload.currentPassword = updateData.currentPassword;
-        updatePayload.newPassword = updateData.newPassword;
-      }
+      console.log("Sending update request with payload:", updatePayload);
 
-      // Call update profile API
-      const response = await post("update_profile.php", updatePayload);
+      try {
+        // Call update profile API
+        const response = await fetch(`${config.apiUrl}/update_profile.php`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          mode: "cors",
+          body: JSON.stringify(updatePayload),
+        });
 
-      if (response.ok) {
-        const result = await response.json();
+        console.log("Response status:", response.status);
 
-        if (result.success) {
-          setSuccessMessage(result.message || "Profile updated successfully!");
+        if (response.ok) {
+          const result = await response.json();
+          console.log("Response data:", result);
 
-          // Update local storage with new email
-          const updatedUser = {
-            ...storedUser,
-            email: updateData.email,
-          };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          if (result.success) {
+            setSuccessMessage(
+              result.message || "Password updated successfully!"
+            );
 
-          // Update the userData state
-          setUserData({
-            ...userData,
-            email: updateData.email,
-          });
+            // Clear password fields
+            setUpdateData({
+              ...updateData,
+              currentPassword: "",
+              newPassword: "",
+              confirmPassword: "",
+            });
 
-          // Clear password fields
-          setUpdateData({
-            ...updateData,
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
-          });
-
-          setIsEditing(false);
+            setIsEditing(false);
+          } else {
+            setErrorMessage(result.message || "Failed to update password");
+          }
         } else {
-          setErrorMessage(result.message || "Failed to update profile");
+          const errorText = await response.text();
+          console.error("Error response:", errorText);
+          setErrorMessage(
+            `Server error (${response.status}): ${
+              errorText || "Failed to connect to the server"
+            }`
+          );
         }
-      } else {
-        setErrorMessage("Failed to connect to the server. Please try again.");
+      } catch (apiError) {
+        console.error("API call error:", apiError);
+        setErrorMessage(
+          "Network error. Please check your connection and try again."
+        );
       }
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -582,24 +585,19 @@ export default function Profile() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
-                    Email
+                    Email (cannot be changed)
                   </label>
                   <div className="relative">
                     <input
                       type="email"
                       name="email"
-                      value={updateData.email}
-                      onChange={handleInputChange}
-                      className="pl-10 w-full bg-black bg-opacity-50 border border-purple-700 text-white rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                      placeholder="Enter your email"
+                      value={userData.email}
+                      disabled
+                      className="pl-10 w-full bg-black bg-opacity-50 border border-purple-700 text-gray-400 rounded-lg p-2 focus:outline-none cursor-not-allowed"
+                      placeholder="Email cannot be changed"
                     />
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                      <Mail
-                        size={16}
-                        className={`text-gray-400 transition-opacity duration-200 ${
-                          updateData.email ? "opacity-0" : "opacity-50"
-                        }`}
-                      />
+                      <Mail size={16} className="text-gray-400 opacity-50" />
                     </div>
                   </div>
                 </div>
