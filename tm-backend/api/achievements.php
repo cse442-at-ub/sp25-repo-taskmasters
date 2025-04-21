@@ -573,6 +573,36 @@ function unlockAchievement($db, $userId, $achievementId) {
         $stmt->bindParam(':achievementId', $achievementId);
         $stmt->execute();
         
+        // Update achievement progress to mark it as complete (100%)
+        $query = "SELECT id FROM achievement_progress 
+                 WHERE user_id = :userId AND achievement_id = :achievementId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->bindParam(':achievementId', $achievementId);
+        $stmt->execute();
+        
+        if ($stmt->rowCount() > 0) {
+            // Get the target value
+            $query = "SELECT target_value FROM achievement_progress 
+                     WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
+            $progressData = $stmt->fetch(PDO::FETCH_ASSOC);
+            $targetValue = $progressData['target_value'];
+            
+            // Update progress to 100%
+            $query = "UPDATE achievement_progress 
+                     SET current_value = :targetValue 
+                     WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->bindParam(':targetValue', $targetValue);
+            $stmt->execute();
+        }
+        
         // Award points for the achievement
         $points = $achievement['points'];
         
@@ -684,6 +714,42 @@ function unlockAchievement($db, $userId, $achievementId) {
                     'icon' => $achievementHunterDetails['icon']
                 ];
             }
+        }
+        
+        // Add notification for the achievement
+        $query = "SELECT id FROM achievement_notifications 
+                 WHERE user_id = :userId AND achievement_id = :achievementId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->bindParam(':achievementId', $achievementId);
+        $stmt->execute();
+        
+        if ($stmt->rowCount() === 0) {
+            // Ensure achievement_notifications table exists
+            $query = "SHOW TABLES LIKE 'achievement_notifications'";
+            $stmt = $db->prepare($query);
+            $stmt->execute();
+            $tableExists = $stmt->rowCount() > 0;
+            
+            if (!$tableExists) {
+                $query = "CREATE TABLE achievement_notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    achievement_id INT NOT NULL,
+                    notified BOOLEAN DEFAULT 0,
+                    notification_date TIMESTAMP NULL,
+                    UNIQUE KEY unique_user_achievement (user_id, achievement_id)
+                )";
+                $db->exec($query);
+            }
+            
+            // Create notification
+            $query = "INSERT INTO achievement_notifications (user_id, achievement_id, notified) 
+                     VALUES (:userId, :achievementId, 0)";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
         }
         
         $db->commit();

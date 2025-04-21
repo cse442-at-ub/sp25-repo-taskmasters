@@ -193,6 +193,9 @@ function getTodaysTasks($db, $userId, $date) {
 
 function completeTask($db, $taskId, $userId, $completed) {
     try {
+        error_log("Starting completeTask function for taskId: $taskId, userId: $userId, completed: " . ($completed ? 'true' : 'false'));
+        
+        // Make sure the completed_tasks table exists
         ensureCompletedTasksTableExists($db);
         
         // Get task details
@@ -203,13 +206,16 @@ function completeTask($db, $taskId, $userId, $completed) {
         $stmt->execute();
         
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
+        error_log("Task details: " . json_encode($task));
         
         if (!$task) {
+            error_log("Task not found or does not belong to the user");
             throw new Exception("Task not found or does not belong to the user");
         }
         
         // Check if task is already marked as completed in the tasks table
         if (isset($task['completed']) && $task['completed'] == 1) {
+            error_log("Task is already completed in tasks table");
             // Task is already completed in the tasks table
             return array(
                 'message' => 'Task is already completed',
@@ -220,113 +226,91 @@ function completeTask($db, $taskId, $userId, $completed) {
         }
         
         if ($completed) {
-            // Check if task is already completed in completed_tasks table
-            $checkQuery = "SELECT * FROM completed_tasks WHERE task_id = :taskId AND user_id = :userId";
-            $checkStmt = $db->prepare($checkQuery);
-            $checkStmt->bindParam(':taskId', $taskId);
-            $checkStmt->bindParam(':userId', $userId);
-            $checkStmt->execute();
+            // Begin transaction to ensure data consistency
+            $db->beginTransaction();
             
-            if ($checkStmt->rowCount() > 0) {
-                // Task is already in completed_tasks, return existing data
-                return array(
-                    'message' => 'Task is already completed',
-                    'success' => true,
-                    'level' => getUserLevel($db, $userId),
-                    'achievements' => getUserAchievements($db, $userId)
-                );
-            }
-            
-            // Update the completed status in the tasks table
-            $updateQuery = "UPDATE tasks SET completed = 1 WHERE task_id = :taskId AND user_id = :userId";
-            $updateStmt = $db->prepare($updateQuery);
-            $updateStmt->bindParam(':taskId', $taskId);
-            $updateStmt->bindParam(':userId', $userId);
-            $updateStmt->execute();
-            
-            // Determine points based on priority
-            $points = 0;
-            switch (strtolower($task['task_priority'])) {
-                case 'high':
-                    $points = 30;
-                    break;
-                case 'medium':
-                    $points = 20;
-                    break;
-                case 'low':
-                    $points = 10;
-                    break;
-                default:
-                    $points = 10;
-            }
-            
-            // Mark task as completed with points
-            $query = "INSERT INTO completed_tasks (task_id, user_id, points) 
-                    VALUES (:taskId, :userId, :points)";
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':taskId', $taskId);
-            $stmt->bindParam(':userId', $userId);
-            $stmt->bindParam(':points', $points);
-            $stmt->execute();
-            
-            // Update user points
-            updateUserPoints($db, $userId, $points);
-            
-            // Check for achievements
-            $achievements = checkAchievements($db, $userId);
-            
-            // Check for task-based achievements using the new achievements system
             try {
-                if (file_exists('../api/achievements.php')) {
-                    error_log("achievements.php file exists, including it");
-                    include_once '../api/achievements.php';
-                    
-                    // Check if the function exists before calling it
-                    if (function_exists('checkTaskAchievements')) {
-                        error_log("checkTaskAchievements function exists, calling it for user $userId and task $taskId");
-                        $taskAchievements = checkTaskAchievements($db, $userId, $taskId);
-                        error_log("checkTaskAchievements result: " . json_encode($taskAchievements));
-                        
-                        // Merge newly unlocked achievements if any
-                        if (isset($taskAchievements['success']) && $taskAchievements['success'] && 
-                            isset($taskAchievements['unlockedAchievements']) && !empty($taskAchievements['unlockedAchievements'])) {
-                            error_log("User unlocked " . count($taskAchievements['unlockedAchievements']) . " achievements");
-                            
-                            if (!isset($achievements['newlyUnlocked'])) {
-                                $achievements['newlyUnlocked'] = [];
-                            }
-                            
-                            $achievements['newlyUnlocked'] = array_merge(
-                                $achievements['newlyUnlocked'],
-                                $taskAchievements['unlockedAchievements']
-                            );
-                            
-                            error_log("Updated achievements with newly unlocked achievements");
-                        } else {
-                            error_log("No new achievements unlocked or invalid response format");
-                        }
-                    } else {
-                        error_log("checkTaskAchievements function not found in achievements.php");
-                    }
-                } else {
-                    error_log("achievements.php file not found");
+                // Check if task is already completed in completed_tasks table
+                $checkQuery = "SELECT * FROM completed_tasks WHERE task_id = :taskId AND user_id = :userId";
+                $checkStmt = $db->prepare($checkQuery);
+                $checkStmt->bindParam(':taskId', $taskId);
+                $checkStmt->bindParam(':userId', $userId);
+                $checkStmt->execute();
+                
+                if ($checkStmt->rowCount() > 0) {
+                    error_log("Task is already in completed_tasks table");
+                    // Task is already in completed_tasks, return existing data
+                    $db->commit();
+                    return array(
+                        'message' => 'Task is already completed',
+                        'success' => true,
+                        'level' => getUserLevel($db, $userId),
+                        'achievements' => getUserAchievements($db, $userId)
+                    );
                 }
+                
+                // Update the completed status in the tasks table
+                $updateQuery = "UPDATE tasks SET completed = 1 WHERE task_id = :taskId AND user_id = :userId";
+                $updateStmt = $db->prepare($updateQuery);
+                $updateStmt->bindParam(':taskId', $taskId);
+                $updateStmt->bindParam(':userId', $userId);
+                $updateStmt->execute();
+                error_log("Updated task completion status in tasks table");
+                
+                // Determine points based on priority
+                $points = 0;
+                switch (strtolower($task['task_priority'])) {
+                    case 'high':
+                        $points = 30;
+                        break;
+                    case 'medium':
+                        $points = 20;
+                        break;
+                    case 'low':
+                        $points = 10;
+                        break;
+                    default:
+                        $points = 10;
+                }
+                error_log("Points awarded: $points based on priority: " . $task['task_priority']);
+                
+                // Mark task as completed with points
+                $query = "INSERT INTO completed_tasks (task_id, user_id, points) 
+                        VALUES (:taskId, :userId, :points)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':taskId', $taskId);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':points', $points);
+                $stmt->execute();
+                error_log("Inserted record into completed_tasks table");
+                
+                // Update user points
+                updateUserPoints($db, $userId, $points);
+                error_log("Updated user points");
+                
+                // Check for achievements
+                $achievements = checkAchievements($db, $userId);
+                
+                // Commit the transaction
+                $db->commit();
+                error_log("Transaction committed successfully");
+                
+                // Get updated user level
+                $userLevel = getUserLevel($db, $userId);
+                
+                return array(
+                    'message' => 'Task marked as completed',
+                    'success' => true,
+                    'points' => $points,
+                    'level' => $userLevel,
+                    'achievements' => $achievements
+                );
             } catch (Exception $e) {
-                error_log("Error checking task achievements: " . $e->getMessage());
-                error_log("Stack trace: " . $e->getTraceAsString());
-                // Continue execution, don't let achievement errors stop task completion
+                // Rollback the transaction if any error occurs
+                $db->rollBack();
+                error_log("Transaction rolled back due to error: " . $e->getMessage());
+                throw $e;
             }
-            
-            // Get updated user level
-            $userLevel = getUserLevel($db, $userId);
-            
-            return array(
-                'message' => 'Task marked as completed',
-                'success' => true,
-                'points' => $points,
-                'level' => $userLevel,
-                'achievements' => $achievements
-            );
         } else {
             // Tasks cannot be uncompleted once they are completed
             return array(
@@ -337,6 +321,7 @@ function completeTask($db, $taskId, $userId, $completed) {
         }
     } catch (Exception $e) {
         error_log("Error in completeTask: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
         throw $e;
     }
 }

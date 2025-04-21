@@ -16,6 +16,7 @@ function checkAllAchievements($db, $userId) {
     try {
         $unlockedAchievements = [];
         $updatedProgress = [];
+        $thresholdNotifications = [];
         
         // Get all achievements
         $query = "SELECT * FROM achievements";
@@ -204,14 +205,36 @@ function checkAllAchievements($db, $userId) {
             // Update achievement progress in the database if the table exists
             if ($achievementProgressTableExists) {
                 // Check if progress record exists
-                $query = "SELECT id FROM achievement_progress 
+                $query = "SELECT id, current_value FROM achievement_progress 
                          WHERE user_id = :userId AND achievement_id = :achievementId";
                 $stmt = $db->prepare($query);
                 $stmt->bindParam(':userId', $userId);
                 $stmt->bindParam(':achievementId', $achievement['id']);
                 $stmt->execute();
+                $progressRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+                $previousValue = $progressRecord ? $progressRecord['current_value'] : 0;
                 
-                if ($stmt->rowCount() > 0) {
+                // Calculate percentages for threshold notifications
+                $previousPercent = $targetValue > 0 ? round(($previousValue / $targetValue) * 100) : 0;
+                $currentPercent = $targetValue > 0 ? round(($currentValue / $targetValue) * 100) : 0;
+                
+                // Check if we've crossed a threshold (50%, 75%)
+                $thresholds = [50, 75];
+                foreach ($thresholds as $threshold) {
+                    if ($previousPercent < $threshold && $currentPercent >= $threshold && !$isUnlocked) {
+                        // We've crossed a threshold, create a notification
+                        $thresholdNotifications[] = [
+                            'achievement_id' => $achievement['id'],
+                            'name' => $achievement['name'],
+                            'description' => $achievement['description'],
+                            'icon' => $achievement['icon'],
+                            'threshold' => $threshold,
+                            'current_percent' => $currentPercent
+                        ];
+                    }
+                }
+                
+                if ($progressRecord) {
                     // Update existing record
                     $query = "UPDATE achievement_progress 
                              SET current_value = :currentValue, target_value = :targetValue 
@@ -235,7 +258,7 @@ function checkAllAchievements($db, $userId) {
                     'name' => $achievement['name'],
                     'current_value' => $currentValue,
                     'target_value' => $targetValue,
-                    'percent' => $targetValue > 0 ? round(($currentValue / $targetValue) * 100) : 0
+                    'percent' => $currentPercent
                 ];
             }
             
@@ -248,10 +271,39 @@ function checkAllAchievements($db, $userId) {
             }
         }
         
+        // Ensure achievement_threshold_notifications table exists
+        ensureThresholdNotificationsTableExists($db);
+        
+        // Add threshold notifications to the database
+        foreach ($thresholdNotifications as $notification) {
+            // Check if this threshold notification already exists
+            $query = "SELECT id FROM achievement_threshold_notifications 
+                     WHERE user_id = :userId AND achievement_id = :achievementId AND threshold = :threshold";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $notification['achievement_id']);
+            $stmt->bindParam(':threshold', $notification['threshold']);
+            $stmt->execute();
+            
+            if ($stmt->rowCount() === 0) {
+                // Insert new threshold notification
+                $query = "INSERT INTO achievement_threshold_notifications 
+                         (user_id, achievement_id, threshold, notified, current_percent) 
+                         VALUES (:userId, :achievementId, :threshold, 0, :currentPercent)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':achievementId', $notification['achievement_id']);
+                $stmt->bindParam(':threshold', $notification['threshold']);
+                $stmt->bindParam(':currentPercent', $notification['current_percent']);
+                $stmt->execute();
+            }
+        }
+        
         return [
             'success' => true,
             'unlockedAchievements' => $unlockedAchievements,
-            'updatedProgress' => $updatedProgress
+            'updatedProgress' => $updatedProgress,
+            'thresholdNotifications' => $thresholdNotifications
         ];
     } catch (Exception $e) {
         error_log("Error checking all achievements: " . $e->getMessage());
@@ -591,6 +643,41 @@ function checkDailyTaskMasterAchievement($db, $userId) {
         return false;
     } catch (Exception $e) {
         error_log("Error checking Daily Task Master achievement: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Ensure the achievement_threshold_notifications table exists
+ */
+function ensureThresholdNotificationsTableExists($db) {
+    try {
+        // Check if achievement_threshold_notifications table exists
+        $query = "SHOW TABLES LIKE 'achievement_threshold_notifications'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $tableExists = $stmt->rowCount() > 0;
+        
+        if (!$tableExists) {
+            // Create achievement_threshold_notifications table
+            $query = "CREATE TABLE achievement_threshold_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                achievement_id INT NOT NULL,
+                threshold INT NOT NULL,
+                current_percent INT NOT NULL,
+                notified BOOLEAN DEFAULT 0,
+                notification_date TIMESTAMP NULL,
+                UNIQUE KEY unique_user_achievement_threshold (user_id, achievement_id, threshold)
+            )";
+            
+            $db->exec($query);
+            error_log("Created achievement_threshold_notifications table");
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Error ensuring achievement_threshold_notifications table exists: " . $e->getMessage());
         return false;
     }
 }

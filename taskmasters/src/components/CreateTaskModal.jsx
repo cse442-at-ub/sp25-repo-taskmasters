@@ -323,36 +323,57 @@ export default function CreateTaskForm({ onClose }) {
         throw new Error('User not logged in');
       }
       
-      // Calculate duration in minutes
-      const startTimeObj = new Date(`2000/01/01 ${formData.startTime}`);
-      const endTimeObj = new Date(`2000/01/01 ${formData.endTime}`);
-      const duration = Math.round((endTimeObj - startTimeObj) / (1000 * 60));
+      // If start date is not provided, use today
+      if (!formData.startDate) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        formData.startDate = `${year}-${month}-${day}`;
+      }
       
       // If end date is not provided, use start date
       if (!formData.endDate && formData.startDate) {
         formData.endDate = formData.startDate;
       }
       
+      // Find a suitable time slot for the task based on the selected duration
+      const startDate = new Date(formData.startDate);
+      const timeSlot = await findFreeTimeSlot(startDate, taskDuration);
+      
+      if (!timeSlot) {
+        setError('Could not find a suitable time slot. Please set the time manually.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update form data with the found time slot
+      const updatedFormData = {
+        ...formData,
+        startTime: timeSlot.startTime,
+        endTime: timeSlot.endTime
+      };
+      
+      setFormData(updatedFormData);
+      
       // For recurring tasks, create a task for each selected day
       if (isRecurring && selectedDays.length > 0) {
         const createRecurringTasks = async () => {
-          const startDate = new Date(formData.startDate);
-          const endDate = new Date(formData.endDate || formData.startDate);
+          const startDate = new Date(updatedFormData.startDate);
+          const endDate = new Date(updatedFormData.endDate || updatedFormData.startDate);
           
           // Create a task for the initial date
           // Ensure taskName is not empty
           const taskData = {
-            ...formData,
+            ...updatedFormData,
             userId: user.id,
-            duration: duration,
+            duration: taskDuration,
             recurring: 1,
-
             recurringDays: selectedDays.join(','),
-            taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+            taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
           };
           
           const initialResponse = await post('tasks.php', taskData);
-
 
           if (!initialResponse.ok) {
             throw new Error('Failed to create initial task');
@@ -371,13 +392,13 @@ export default function CreateTaskForm({ onClose }) {
             if (selectedDays.includes(daysOfWeek[currentDayOfWeek])) {
               // Ensure taskName is not empty for recurring tasks too
               await post('tasks.php', {
-                ...formData,
+                ...updatedFormData,
                 userId: user.id,
-                duration: duration,
+                duration: taskDuration,
                 startDate: currentDate.toISOString().split('T')[0],
                 recurring: 1,
                 recurringDays: selectedDays.join(','),
-                taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+                taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
               });
             }
           }
@@ -390,15 +411,13 @@ export default function CreateTaskForm({ onClose }) {
       }
       
       // For non-recurring tasks, create a single task
-
-      setIsLoading(true);
       // Ensure taskName is not empty
       const taskData = {
-        ...formData,
+        ...updatedFormData,
         userId: user.id,
-        duration: duration,
+        duration: taskDuration,
         recurring: 0,
-        taskName: formData.taskName || "Untitled Task" // Provide default name if empty
+        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
       };
       
       const response = await post('tasks.php', taskData);

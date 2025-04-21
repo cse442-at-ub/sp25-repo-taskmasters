@@ -577,6 +577,14 @@ function Dashboard() {
                 <span className="text-lg">Achievements</span>
               )}
             </a>
+            <a
+              href="#/profile"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              title="Profile"
+            >
+              <User size={20} />
+              {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
+            </a>
           </div>
         </nav>
 
@@ -1148,80 +1156,15 @@ function Dashboard() {
                 Cancel
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    // Get user data
-                    const userData = JSON.parse(localStorage.getItem("user"));
-                    if (!userData || !userData.id) {
-                      throw new Error("User not authenticated");
-                    }
-
-                    // Mark task as completed using direct fetch to avoid any issues
-                    const response = await fetch(`${config.apiUrl}/dashboard.php`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        action: "completeTask",
-                        taskId: taskToComplete.id,
-                        userId: userData.id,
-                        completed: true,
-                      }),
-                    });
-
-                    if (!response.ok) {
-                      const errorText = await response.text();
-                      throw new Error(`Failed to update task completion status: ${errorText}`);
-                    }
-
-                    const result = await response.json();
-                    console.log("Task completion result:", result);
-
-                    // Process the completed task in the UI
-                    if (result.success) {
-                      // Create a copy of the task with completed status
-                      const completedTaskCopy = { ...taskToComplete, completed: true };
-
-                      // Add to completed tasks
-                      setCompletedTasks(prevCompletedTasks => [
-                        ...prevCompletedTasks,
-                        completedTaskCopy
-                      ]);
-
-                      // Remove from active tasks
-                      setTasks(prevTasks => 
-                        prevTasks.filter(task => task.id !== taskToComplete.id)
-                      );
-
-                      // Show points modal if points were awarded
-                      if (result.points && result.points > 0) {
-                        setEarnedPoints(result.points);
-                        setPointsModalOpen(true);
-                      }
-
-                      // Update user level and achievements if provided
-                      if (result.level) {
-                        setUserLevel(result.level);
-                      }
-
-                      if (result.achievements) {
-                        setAchievements(result.achievements);
-                      }
-                    }
-
-                    // Refresh dashboard data to ensure persistence
-                    if (userData && userData.id) {
-                      await fetchDashboardData(userData.id);
-                    }
-
-                    // Close modal
-                    setConfirmationModalOpen(false);
-                    setTaskToComplete(null);
-                  } catch (error) {
-                    console.error("Error completing task:", error);
-                    alert(`Error: ${error.message}`);
-                  }
+                onClick={() => {
+                  // Close the confirmation modal first
+                  setConfirmationModalOpen(false);
+                  
+                  // Use the existing handleTaskCompletion function to complete the task
+                  handleTaskCompletion(taskToComplete.id, true);
+                  
+                  // Clear the taskToComplete state
+                  setTaskToComplete(null);
                 }}
                 className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc] transition-all duration-200"
               >

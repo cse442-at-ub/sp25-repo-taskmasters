@@ -9,7 +9,9 @@ import WeekView from './components/WeekView';
 import MonthView from './components/MonthView';
 import AvatarCustomization from './components/AvatarCustomization';
 import Achievements from './components/Achievements';
+import Profile from './components/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
+import LandingPage from './components/LandingPage';
 import './index.css';
 
 function App() {
@@ -53,6 +55,11 @@ function App() {
             <Achievements />
           </ProtectedRoute>
         } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
         <Route path="/create-task" element={
           <ProtectedRoute>
             <div>Create Task Coming Soon</div>
@@ -60,10 +67,10 @@ function App() {
         } />
 
         {/* Default route */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<LandingPage />} />
 
-        {/* Catch all route - redirect to login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Catch all route - redirect to landing page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
