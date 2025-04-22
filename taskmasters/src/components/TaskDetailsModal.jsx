@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../config";
+import { Clock } from 'lucide-react';
 
 export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUpdated }) {
   const [task, setTask] = useState(null);
@@ -530,35 +531,45 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
               <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
                 Start Time
               </label>
-              <input
-                type="time"
-                id="startTime"
-                name="startTime"
-                value={formData.startTime}
-                onChange={handleInputChange}
-                readOnly={!isEditing}
-                disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
-                  isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
-                }`}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  id="startTime"
+                  name="startTime"
+                  value={formData.startTime}
+                  onChange={handleInputChange}
+                  readOnly={!isEditing}
+                  disabled={!isEditing}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md pr-10 ${
+                    isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
+                  }`}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <Clock size={18} className="text-gray-500" />
+                </div>
+              </div>
             </div>
             <div>
               <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">
                 End Time
               </label>
-              <input
-                type="time"
-                id="endTime"
-                name="endTime"
-                value={formData.endTime}
-                onChange={handleInputChange}
-                readOnly={!isEditing}
-                disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
-                  isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
-                }`}
-              />
+              <div className="relative">
+                <input
+                  type="time"
+                  id="endTime"
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleInputChange}
+                  readOnly={!isEditing}
+                  disabled={!isEditing}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md pr-10 ${
+                    isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
+                  }`}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <Clock size={18} className="text-gray-500" />
+                </div>
+              </div>
             </div>
           </div>
 

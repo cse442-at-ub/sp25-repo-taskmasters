@@ -1,9 +1,143 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
+import { Clock } from "lucide-react"
 import config from '../config'
 import { post } from '../utils/api'
+
+// Custom styles for select dropdown to match production
+const selectStyles = `
+  .time-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    padding-right: 2.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #374151;
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .time-select:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  /* Firefox-specific styling */
+  @-moz-document url-prefix() {
+    .time-select {
+      text-indent: 0.01px;
+      text-overflow: '';
+      padding-right: 0.75rem;
+    }
+    
+    .time-select-container .time-select-icon {
+      pointer-events: none;
+    }
+  }
+
+  .time-display {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #374151;
+    background-color: white;
+    cursor: pointer;
+  }
+  
+  .time-display:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  .time-field {
+    position: relative;
+  }
+  
+  .time-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #8000ff;
+  }
+  
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .time-column::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Custom time picker styles to match theme */
+  .time-option {
+    padding: 8px 8px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  
+  .time-option:hover {
+    background-color: #f3e8ff;
+  }
+  
+  .time-option.selected {
+    background-color: #8000ff;
+    color: white;
+    font-weight: 500;
+  }
+`;
+
+// Custom styles for the time picker that matches production
+const timePickerStyles = {
+  timePickerDropdown: {
+    position: 'absolute',
+    bottom: '100%',
+    left: '0',
+    width: '100%',
+    backgroundColor: 'white',
+    border: '1px solid #e8e8e8',
+    borderRadius: '0.375rem',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    zIndex: '50',
+    display: 'flex',
+    marginBottom: '0.5rem',
+    overflow: 'hidden',
+    maxHeight: '250px',
+  },
+  timeColumn: {
+    width: '33.333%',
+    height: '250px',
+    overflowY: 'auto',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    borderRight: '1px solid #e8e8e8',
+  },
+  timeOption: {
+    padding: '8px 8px',
+    cursor: 'pointer',
+    textAlign: 'center',
+    fontSize: '14px',
+    transition: 'background-color 0.2s',
+    borderBottom: '1px solid #f5f5f5',
+  },
+  selectedOption: {
+    backgroundColor: '#8000ff',
+    color: 'white',
+    fontWeight: '500',
+  },
+}
 
 export default function CreateTaskForm({ onClose }) {
   const [error, setError] = useState('');
@@ -24,7 +158,105 @@ export default function CreateTaskForm({ onClose }) {
     priority: "",
     recurring: 0,
     recurringDays: ""
-  })
+  });
+  
+  // Time picker state
+  const [showTimePicker, setShowTimePicker] = useState(null); // 'start' or 'end' or null
+  const [selectedHour, setSelectedHour] = useState(12);
+  const [selectedMinute, setSelectedMinute] = useState('00');
+  const [selectedPeriod, setSelectedPeriod] = useState('AM');
+  
+  // Refs for time picker dropdown
+  const startTimeRef = useRef(null);
+  const endTimeRef = useRef(null);
+  
+  // Handle hour selection
+  const handleHourSelect = (hour, type) => {
+    setSelectedHour(hour);
+    applyTimeSelection(hour, selectedMinute, selectedPeriod, type);
+  };
+  
+  // Handle minute selection
+  const handleMinuteSelect = (minute, type) => {
+    setSelectedMinute(minute);
+    applyTimeSelection(selectedHour, minute, selectedPeriod, type);
+  };
+  
+  // Handle period selection
+  const handlePeriodSelect = (period, type) => {
+    setSelectedPeriod(period);
+    applyTimeSelection(selectedHour, selectedMinute, period, type);
+  };
+  
+  // Apply the time selection
+  const applyTimeSelection = (hour, minute, period, type) => {
+    const formattedHour = period === 'PM' && hour !== 12 
+      ? hour + 12 
+      : (period === 'AM' && hour === 12 ? 0 : hour);
+    
+    const timeValue = `${formattedHour.toString().padStart(2, '0')}:${minute}`;
+    
+    setFormData(prev => ({
+      ...prev,
+      [type === 'start' ? 'startTime' : 'endTime']: timeValue
+    }));
+    
+    setShowTimePicker(null);
+  };
+  
+  // Parse time from format HH:MM to hour, minute, period
+  const parseTime = (timeString) => {
+    if (!timeString) return { hour: 12, minute: '00', period: 'AM' };
+    
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    
+    return {
+      hour: hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour),
+      minute: minutes,
+      period: hour >= 12 ? 'PM' : 'AM'
+    };
+  };
+  
+  // Format time for display
+  const formatTimeDisplay = (timeString) => {
+    if (!timeString) return "--:-- --";
+    
+    const { hour, minute, period } = parseTime(timeString);
+    return `${hour}:${minute} ${period}`;
+  };
+  
+  // Handle click outside to close time picker
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (startTimeRef.current && !startTimeRef.current.contains(event.target) &&
+          endTimeRef.current && !endTimeRef.current.contains(event.target)) {
+        setShowTimePicker(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  // Add styles to document head
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = selectStyles;
+    styleElement.innerHTML += timePickerStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
+  const handleCancel = () => {
+    onClose();
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -88,7 +320,7 @@ export default function CreateTaskForm({ onClose }) {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Function to find free time slots in the calendar
-
+  // eslint-disable-next-line no-unused-vars
   const findFreeTimeSlot = async (date, duration) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -198,10 +430,7 @@ export default function CreateTaskForm({ onClose }) {
     setIsDurationModalOpen(true);
   };
 
-
-  // This is a placeholder declaration to avoid duplicate function error
-  // The actual implementation is below in the handleSubmit function
-
+  // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate()
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -394,11 +623,11 @@ export default function CreateTaskForm({ onClose }) {
       setIsLoading(true);
       // Ensure taskName is not empty
       const taskData = {
-        ...updatedFormData,
+        ...formData,
         userId: user.id,
         duration: duration,
         recurring: 0,
-        taskName: updatedFormData.taskName || "Untitled Task" // Provide default name if empty
+        taskName: formData.taskName || "Untitled Task" // Provide default name if empty
       };
       
       const response = await post('tasks.php', taskData);
@@ -416,6 +645,31 @@ export default function CreateTaskForm({ onClose }) {
       setIsLoading(false);
     }
   }
+
+  // Remove unused generateTimeOptions - or add eslint-disable comment
+  // eslint-disable-next-line no-unused-vars
+  const generateTimeOptions = () => {
+    const options = [];
+    
+    // Add time options in 15-minute increments
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const formattedHour = hour.toString().padStart(2, '0');
+        const formattedMinute = minute.toString().padStart(2, '0');
+        const value = `${formattedHour}:${formattedMinute}`;
+        
+        // Format display time with AM/PM
+        let displayHour = hour % 12;
+        if (displayHour === 0) displayHour = 12;
+        const period = hour < 12 ? 'AM' : 'PM';
+        const display = `${displayHour}:${formattedMinute.padStart(2, '0')} ${period}`;
+        
+        options.push({ value, display });
+      }
+    }
+    
+    return options;
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -446,94 +700,6 @@ export default function CreateTaskForm({ onClose }) {
             <div className="text-center">
               <div className="w-10 h-10 border-4 border-[#9706e9] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
               <p className="text-gray-700">Auto-scheduling your task...</p>
-            </div>
-          </div>
-        )}
-
-        {/* Duration Selection Modal */}
-        {isDurationModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-            <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-6">
-              <h2 className="text-xl font-semibold text-center mb-4">Select Task Duration</h2>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  How long should this task be?
-                </label>
-                
-                <div className="flex flex-col space-y-4">
-                  {/* Duration slider */}
-                  <div className="w-full">
-                    <input
-                      type="range"
-                      min="15"
-                      max="240"
-                      step="15"
-                      value={taskDuration}
-                      onChange={(e) => setTaskDuration(parseInt(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#9706e9]"
-                    />
-                    
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>15m</span>
-                      <span>1h</span>
-                      <span>2h</span>
-                      <span>3h</span>
-                      <span>4h</span>
-                    </div>
-                  </div>
-                  
-                  {/* Duration display */}
-                  <div className="text-center text-2xl font-bold text-[#9706e9]">
-                    {taskDuration < 60 
-                      ? `${taskDuration} minutes` 
-                      : taskDuration % 60 === 0 
-                        ? `${taskDuration / 60} hour${taskDuration > 60 ? 's' : ''}` 
-                        : `${Math.floor(taskDuration / 60)}h ${taskDuration % 60}m`
-                    }
-                  </div>
-                  
-                  {/* Quick selection buttons */}
-                  <div className="flex flex-wrap gap-2 justify-center mt-2">
-                    {[30, 45, 60, 90, 120].map(duration => (
-                      <button
-                        key={duration}
-                        type="button"
-                        onClick={() => setTaskDuration(duration)}
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          taskDuration === duration 
-                            ? 'bg-[#9706e9] text-white' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {duration < 60 
-                          ? `${duration}m` 
-                          : duration % 60 === 0 
-                            ? `${duration / 60}h` 
-                            : `${Math.floor(duration / 60)}h ${duration % 60}m`
-                        }
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsDurationModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDurationSelect}
-                  className="px-4 py-2 bg-[#9706e9] text-white rounded-md hover:bg-[#8005cc]"
-                >
-                  Confirm
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -696,27 +862,179 @@ export default function CreateTaskForm({ onClose }) {
               <label htmlFor="startTime" className="block text-sm font-medium text-gray-700 mb-1">
                 Start Time
               </label>
-              <input
-                type="time"
-                id="startTime"
-                name="startTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.startTime}
-                onChange={handleInputChange}
-              />
+              <div className="relative time-field" ref={startTimeRef}>
+                {/* Time picker dropdown */}
+                {showTimePicker === 'start' && (
+                  <div style={timePickerStyles.timePickerDropdown}>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((hour) => (
+                        <div
+                          key={hour}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedHour === parseInt(hour) ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handleHourSelect(parseInt(hour), 'start')}
+                        >
+                          {hour}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', 
+                        '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', 
+                        '20', '21', '22', '23', '24', '25', '26', '27', '28', '29',
+                        '30', '31', '32', '33', '34', '35', '36', '37', '38', '39',
+                        '40', '41', '42', '43', '44', '45', '46', '47', '48', '49',
+                        '50', '51', '52', '53', '54', '55', '56', '57', '58', '59'].map((minute) => (
+                        <div
+                          key={minute}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedMinute === minute ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handleMinuteSelect(minute, 'start')}
+                        >
+                          {minute}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['AM', 'PM'].map((period) => (
+                        <div
+                          key={period}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedPeriod === period ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handlePeriodSelect(period, 'start')}
+                        >
+                          {period}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <input
+                  type="text"
+                  id="startTime"
+                  name="startTime"
+                  value={formatTimeDisplay(formData.startTime)}
+                  readOnly
+                  className="time-display"
+                  onClick={() => {
+                    // When clicking the start time field, update the selected values from the current time
+                    if (formData.startTime) {
+                      const { hour, minute, period } = parseTime(formData.startTime);
+                      setSelectedHour(hour);
+                      setSelectedMinute(minute);
+                      setSelectedPeriod(period);
+                    }
+                    setShowTimePicker('start');
+                  }}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer time-icon"
+                     onClick={() => {
+                       if (formData.startTime) {
+                         const { hour, minute, period } = parseTime(formData.startTime);
+                         setSelectedHour(hour);
+                         setSelectedMinute(minute);
+                         setSelectedPeriod(period);
+                       }
+                       setShowTimePicker('start');
+                     }}>
+                  <Clock size={16} className="text-purple-600" />
+                </div>
+              </div>
             </div>
             <div>
               <label htmlFor="endTime" className="block text-sm font-medium text-gray-700 mb-1">
                 End Time
               </label>
-              <input
-                type="time"
-                id="endTime"
-                name="endTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                value={formData.endTime}
-                onChange={handleInputChange}
-              />
+              <div className="relative time-field" ref={endTimeRef}>
+                {/* Time picker dropdown */}
+                {showTimePicker === 'end' && (
+                  <div style={timePickerStyles.timePickerDropdown}>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((hour) => (
+                        <div
+                          key={hour}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedHour === parseInt(hour) ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handleHourSelect(parseInt(hour), 'end')}
+                        >
+                          {hour}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', 
+                        '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', 
+                        '20', '21', '22', '23', '24', '25', '26', '27', '28', '29',
+                        '30', '31', '32', '33', '34', '35', '36', '37', '38', '39',
+                        '40', '41', '42', '43', '44', '45', '46', '47', '48', '49',
+                        '50', '51', '52', '53', '54', '55', '56', '57', '58', '59'].map((minute) => (
+                        <div
+                          key={minute}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedMinute === minute ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handleMinuteSelect(minute, 'end')}
+                        >
+                          {minute}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={timePickerStyles.timeColumn}>
+                      {['AM', 'PM'].map((period) => (
+                        <div
+                          key={period}
+                          style={{
+                            ...timePickerStyles.timeOption,
+                            ...(selectedPeriod === period ? timePickerStyles.selectedOption : {})
+                          }}
+                          onClick={() => handlePeriodSelect(period, 'end')}
+                        >
+                          {period}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <input
+                  type="text"
+                  id="endTime"
+                  name="endTime"
+                  value={formatTimeDisplay(formData.endTime)}
+                  readOnly
+                  className="time-display"
+                  onClick={() => {
+                    // When clicking the end time field, update the selected values from the current time
+                    if (formData.endTime) {
+                      const { hour, minute, period } = parseTime(formData.endTime);
+                      setSelectedHour(hour);
+                      setSelectedMinute(minute);
+                      setSelectedPeriod(period);
+                    }
+                    setShowTimePicker('end');
+                  }}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer time-icon"
+                     onClick={() => {
+                       if (formData.endTime) {
+                         const { hour, minute, period } = parseTime(formData.endTime);
+                         setSelectedHour(hour);
+                         setSelectedMinute(minute);
+                         setSelectedPeriod(period);
+                       }
+                       setShowTimePicker('end');
+                     }}>
+                  <Clock size={16} className="text-purple-600" />
+                </div>
+              </div>
             </div>
           </div>
 
