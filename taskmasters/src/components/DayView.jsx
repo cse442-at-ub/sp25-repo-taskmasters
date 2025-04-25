@@ -329,6 +329,7 @@ export default function DayView() {
 
             <button
               onClick={() => navigate("/month-view")}
+
               className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r hover:bg-[#9706e9]"
             >
               Month

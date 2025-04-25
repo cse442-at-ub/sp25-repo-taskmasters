@@ -140,6 +140,139 @@ const timePickerStyles = {
   },
 };
 
+// Custom styles for select dropdown to match production
+const selectStyles = `
+  .time-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    padding-right: 2.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #374151;
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .time-select:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  /* Firefox-specific styling */
+  @-moz-document url-prefix() {
+    .time-select {
+      text-indent: 0.01px;
+      text-overflow: '';
+      padding-right: 0.75rem;
+    }
+    
+    .time-select-container .time-select-icon {
+      pointer-events: none;
+    }
+  }
+
+  .time-display {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #374151;
+    background-color: white;
+    cursor: pointer;
+  }
+  
+  .time-display:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  .time-field {
+    position: relative;
+  }
+  
+  .time-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #8000ff;
+  }
+  
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .time-column::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Custom time picker styles to match theme */
+  .time-option {
+    padding: 8px 8px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  
+  .time-option:hover {
+    background-color: #f3e8ff;
+  }
+  
+  .time-option.selected {
+    background-color: #8000ff;
+    color: white;
+    font-weight: 500;
+  }
+`;
+
+// Custom styles for the time picker that matches production
+const timePickerStyles = {
+  timePickerDropdown: {
+    position: 'absolute',
+    bottom: '100%',
+    left: '0',
+    width: '100%',
+    backgroundColor: 'white',
+    border: '1px solid #e8e8e8',
+    borderRadius: '0.375rem',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    zIndex: '50',
+    display: 'flex',
+    marginBottom: '0.5rem',
+    overflow: 'hidden',
+    maxHeight: '250px',
+  },
+  timeColumn: {
+    width: '33.333%',
+    height: '250px',
+    overflowY: 'auto',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    borderRight: '1px solid #e8e8e8',
+  },
+  timeOption: {
+    padding: '8px 8px',
+    cursor: 'pointer',
+    textAlign: 'center',
+    fontSize: '14px',
+    transition: 'background-color 0.2s',
+    borderBottom: '1px solid #f5f5f5',
+  },
+  selectedOption: {
+    backgroundColor: '#8000ff',
+    color: 'white',
+    fontWeight: '500',
+  },
+}
+
 export default function CreateTaskForm({ onClose }) {
   const [error, setError] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
@@ -170,6 +303,7 @@ export default function CreateTaskForm({ onClose }) {
   // Refs for time picker dropdown
   const startTimeRef = useRef(null);
   const endTimeRef = useRef(null);
+
 
   // Handle hour selection
   const handleHourSelect = (hour, type) => {
@@ -256,6 +390,7 @@ export default function CreateTaskForm({ onClose }) {
     styleElement.innerHTML = selectStyles;
     styleElement.innerHTML += timePickerStyles;
     document.head.appendChild(styleElement);
+
 
     return () => {
       document.head.removeChild(styleElement);
@@ -451,6 +586,7 @@ export default function CreateTaskForm({ onClose }) {
 
   // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -646,6 +782,7 @@ export default function CreateTaskForm({ onClose }) {
         duration: duration,
         recurring: 0,
         taskName: formData.taskName || "Untitled Task", // Provide default name if empty
+
       };
 
       const response = await post("tasks.php", taskData);
@@ -689,6 +826,31 @@ export default function CreateTaskForm({ onClose }) {
       }
     }
 
+    return options;
+  };
+
+  // Remove unused generateTimeOptions - or add eslint-disable comment
+  // eslint-disable-next-line no-unused-vars
+  const generateTimeOptions = () => {
+    const options = [];
+    
+    // Add time options in 15-minute increments
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const formattedHour = hour.toString().padStart(2, '0');
+        const formattedMinute = minute.toString().padStart(2, '0');
+        const value = `${formattedHour}:${formattedMinute}`;
+        
+        // Format display time with AM/PM
+        let displayHour = hour % 12;
+        if (displayHour === 0) displayHour = 12;
+        const period = hour < 12 ? 'AM' : 'PM';
+        const display = `${displayHour}:${formattedMinute.padStart(2, '0')} ${period}`;
+        
+        options.push({ value, display });
+      }
+    }
+    
     return options;
   };
 
@@ -936,6 +1098,7 @@ export default function CreateTaskForm({ onClose }) {
                         "11",
                         "12",
                       ].map((hour) => (
+
                         <div
                           key={hour}
                           style={{
@@ -947,6 +1110,7 @@ export default function CreateTaskForm({ onClose }) {
                           onClick={() =>
                             handleHourSelect(parseInt(hour), "start")
                           }
+
                         >
                           {hour}
                         </div>
@@ -1015,6 +1179,7 @@ export default function CreateTaskForm({ onClose }) {
                         "58",
                         "59",
                       ].map((minute) => (
+
                         <div
                           key={minute}
                           style={{
@@ -1024,6 +1189,7 @@ export default function CreateTaskForm({ onClose }) {
                               : {}),
                           }}
                           onClick={() => handleMinuteSelect(minute, "start")}
+
                         >
                           {minute}
                         </div>
@@ -1031,6 +1197,7 @@ export default function CreateTaskForm({ onClose }) {
                     </div>
                     <div style={timePickerStyles.timeColumn}>
                       {["AM", "PM"].map((period) => (
+
                         <div
                           key={period}
                           style={{
@@ -1040,6 +1207,7 @@ export default function CreateTaskForm({ onClose }) {
                               : {}),
                           }}
                           onClick={() => handlePeriodSelect(period, "start")}
+
                         >
                           {period}
                         </div>
@@ -1060,6 +1228,7 @@ export default function CreateTaskForm({ onClose }) {
                       const { hour, minute, period } = parseTime(
                         formData.startTime
                       );
+
                       setSelectedHour(hour);
                       setSelectedMinute(minute);
                       setSelectedPeriod(period);
@@ -1081,6 +1250,7 @@ export default function CreateTaskForm({ onClose }) {
                     setShowTimePicker("start");
                   }}
                 >
+
                   <Clock size={16} className="text-purple-600" />
                 </div>
               </div>
@@ -1111,6 +1281,7 @@ export default function CreateTaskForm({ onClose }) {
                         "11",
                         "12",
                       ].map((hour) => (
+
                         <div
                           key={hour}
                           style={{
@@ -1122,6 +1293,7 @@ export default function CreateTaskForm({ onClose }) {
                           onClick={() =>
                             handleHourSelect(parseInt(hour), "end")
                           }
+
                         >
                           {hour}
                         </div>
@@ -1190,6 +1362,7 @@ export default function CreateTaskForm({ onClose }) {
                         "58",
                         "59",
                       ].map((minute) => (
+
                         <div
                           key={minute}
                           style={{
@@ -1199,6 +1372,7 @@ export default function CreateTaskForm({ onClose }) {
                               : {}),
                           }}
                           onClick={() => handleMinuteSelect(minute, "end")}
+
                         >
                           {minute}
                         </div>
@@ -1206,6 +1380,7 @@ export default function CreateTaskForm({ onClose }) {
                     </div>
                     <div style={timePickerStyles.timeColumn}>
                       {["AM", "PM"].map((period) => (
+
                         <div
                           key={period}
                           style={{
@@ -1215,6 +1390,7 @@ export default function CreateTaskForm({ onClose }) {
                               : {}),
                           }}
                           onClick={() => handlePeriodSelect(period, "end")}
+
                         >
                           {period}
                         </div>
@@ -1235,6 +1411,7 @@ export default function CreateTaskForm({ onClose }) {
                       const { hour, minute, period } = parseTime(
                         formData.endTime
                       );
+
                       setSelectedHour(hour);
                       setSelectedMinute(minute);
                       setSelectedPeriod(period);
@@ -1256,6 +1433,7 @@ export default function CreateTaskForm({ onClose }) {
                     setShowTimePicker("end");
                   }}
                 >
+
                   <Clock size={16} className="text-purple-600" />
                 </div>
               </div>
@@ -1411,3 +1589,4 @@ export default function CreateTaskForm({ onClose }) {
     </div>
   );
 }
+
