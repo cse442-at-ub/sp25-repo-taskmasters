@@ -29,7 +29,7 @@ error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
 // Check if the request method is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(array("message" => "Method not allowed"));
+    echo json_encode(array("success" => false, "message" => "Method not allowed"));
     exit;
 }
 
@@ -44,12 +44,6 @@ function sanitizeInput($data) {
     return $data;
 }
 
-// Function to generate a secure random token (for consistency with request_password_reset.php)
-function generateToken() {
-    // Generate a token that's URL-safe
-    return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-}
-
 // Get the request body
 $input = file_get_contents("php://input");
 error_log("Request body: " . $input);
@@ -60,61 +54,68 @@ $data = json_decode($input);
 // Check if the JSON is valid
 if (json_last_error() !== JSON_ERROR_NONE) {
     http_response_code(400);
-    echo json_encode(array("message" => "Invalid JSON: " . json_last_error_msg()));
+    echo json_encode(array("success" => false, "message" => "Invalid JSON: " . json_last_error_msg()));
     exit;
 }
 
 // Check if the required fields are present
-if (!isset($data->email) || !isset($data->password) || !isset($data->confirmPassword)) {
+if (!isset($data->userId) || !isset($data->currentPassword) || !isset($data->newPassword)) {
     http_response_code(400);
-    echo json_encode(array("message" => "Email, password, and confirm password are required"));
-    exit;
-}
-
-// Check if the passwords match
-if ($data->password !== $data->confirmPassword) {
-    http_response_code(400);
-    echo json_encode(array("message" => "Passwords do not match"));
+    echo json_encode(array("success" => false, "message" => "User ID, current password, and new password are required"));
     exit;
 }
 
 // Check if the password is strong enough
-if (strlen($data->password) < 8) {
+if (strlen($data->newPassword) < 8) {
     http_response_code(400);
-    echo json_encode(array("message" => "Password must be at least 8 characters long"));
+    echo json_encode(array("success" => false, "message" => "Password must be at least 8 characters long"));
     exit;
 }
 
-// Sanitize the email
-$email = sanitizeInput($data->email);
-error_log("Email for password reset: " . $email);
+// Sanitize the inputs
+$userId = sanitizeInput($data->userId);
+$currentPassword = $data->currentPassword; // Don't sanitize passwords
+$newPassword = $data->newPassword; // Don't sanitize passwords
+$email = isset($data->email) ? sanitizeInput($data->email) : null;
+
+error_log("Processing profile update for user ID: " . $userId);
 
 try {
     // Create database connection
     $database = new Database();
     $db = $database->getConnection();
     
-    // Find the user by email
-    $query = "SELECT user_id FROM users WHERE email = :email";
+    // Get the user's current password hash
+    $query = "SELECT password_hash, email FROM users WHERE user_id = :user_id";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(":email", $email);
+    $stmt->bindParam(":user_id", $userId);
     $stmt->execute();
     
     // Check if the user was found
     if ($stmt->rowCount() === 0) {
-        http_response_code(400);
-        echo json_encode(array("message" => "No account found with this email address"));
+        http_response_code(404);
+        echo json_encode(array("success" => false, "message" => "User not found"));
         exit;
     }
     
-    // Get the user ID
+    // Get the user data
     $userData = $stmt->fetch(PDO::FETCH_ASSOC);
-    $userId = $userData['user_id'];
+    $storedPasswordHash = $userData['password_hash'];
+    $userEmail = $userData['email'];
     
-    error_log("User found for email: " . $email . ", user_id: " . $userId);
+    error_log("User found with email: " . $userEmail);
+    
+    // Verify the current password
+    if (!password_verify($currentPassword, $storedPasswordHash)) {
+        http_response_code(401);
+        echo json_encode(array("success" => false, "message" => "Current password is incorrect"));
+        exit;
+    }
+    
+    error_log("Current password verified successfully");
     
     // Hash the new password
-    $hashedPassword = password_hash($data->password, PASSWORD_DEFAULT);
+    $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
     
     // Update the user's password
     $updateQuery = "UPDATE users SET password_hash = :password_hash WHERE user_id = :user_id";
@@ -126,29 +127,26 @@ try {
     // Check if the password was updated
     if ($updateStmt->rowCount() === 0) {
         http_response_code(500);
-        echo json_encode(array("message" => "Failed to update password"));
+        echo json_encode(array("success" => false, "message" => "Failed to update password"));
         exit;
     }
     
-    error_log("Password updated successfully for user_id: " . $userId);
-    
-    // Delete any existing reset tokens for this user
-    $deleteQuery = "DELETE FROM password_reset_tokens WHERE user_id = :user_id";
-    $deleteStmt = $db->prepare($deleteQuery);
-    $deleteStmt->bindParam(":user_id", $userId);
-    $deleteStmt->execute();
+    error_log("Password updated successfully for user ID: " . $userId);
     
     // Return success
     http_response_code(200);
-    echo json_encode(array("message" => "Password has been reset successfully. You can now log in with your new password."));
+    echo json_encode(array(
+        "success" => true,
+        "message" => "Password has been updated successfully."
+    ));
     
 } catch (PDOException $e) {
     error_log("Database error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(array("message" => "Database error: " . $e->getMessage()));
+    echo json_encode(array("success" => false, "message" => "Database error: " . $e->getMessage()));
 } catch (Exception $e) {
     error_log("Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(array("message" => "Error: " . $e->getMessage()));
+    echo json_encode(array("success" => false, "message" => "Error: " . $e->getMessage()));
 }
 ?>

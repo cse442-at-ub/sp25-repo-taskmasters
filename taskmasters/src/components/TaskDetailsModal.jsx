@@ -4,6 +4,99 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../config";
 
+// Custom styles for select dropdown to match production
+const selectStyles = `
+  .time-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    padding-right: 2.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #374151;
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .time-select:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  /* Firefox-specific styling */
+  @-moz-document url-prefix() {
+    .time-select {
+      text-indent: 0.01px;
+      text-overflow: '';
+      padding-right: 0.75rem;
+    }
+    
+    .time-select-container .time-select-icon {
+      pointer-events: none;
+    }
+  }
+
+  .time-display {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #374151;
+    background-color: white;
+    cursor: pointer;
+  }
+  
+  .time-display:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  .time-field {
+    position: relative;
+  }
+  
+  .time-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #8000ff;
+  }
+  
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .time-column::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Custom time picker styles to match theme */
+  .time-option {
+    padding: 8px 8px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  
+  .time-option:hover {
+    background-color: #f3e8ff;
+  }
+  
+  .time-option.selected {
+    background-color: #8000ff;
+    color: white;
+    font-weight: 500;
+  }
+`;
+
 export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUpdated }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,6 +105,7 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
   const editModeRef = useRef(false); // Use a ref to track edit mode
   const [isRecurring, setIsRecurring] = useState(false);
   const [selectedDays, setSelectedDays] = useState([]);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [formData, setFormData] = useState({
     taskName: "",
     category: "",
@@ -93,6 +187,9 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
         
         if (taskData) {
           setTask(taskData);
+          
+          // Check if task is completed
+          setIsCompleted(taskData.completed === "1");
           
           // Extract time from the formatted_time field, handling both 12-hour and 24-hour formats
           const formattedTime = taskData.formatted_time || "00:00:00";
@@ -345,9 +442,23 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
         }),
       });
 
-      const data = await response.json();
+      // Check if response is empty before trying to parse JSON
+      const responseText = await response.text();
+      let data = { message: "Task completed successfully" };
+      
+      if (responseText && responseText.trim() !== '') {
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error("Error parsing JSON response:", e);
+          // Use default success message if parsing fails
+        }
+      }
 
       if (response.ok) {
+        // Update the completed state
+        setIsCompleted(true);
+        
         // Check if any achievements were unlocked
         if (data.achievements && data.achievements.unlockedAchievements && data.achievements.unlockedAchievements.length > 0) {
           // Show achievement notification
@@ -360,8 +471,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
           alert("Task completed successfully!");
         }
         
+        // Update the task in the parent component
         if (onTaskUpdated) onTaskUpdated();
-        onClose();
+        
+        // Close the modal after a short delay to show the completed status
+        setTimeout(() => {
+          onClose();
+        }, 1000);
       } else {
         setError(data.message || "Failed to complete task");
       }
@@ -435,7 +551,14 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8 max-h-[90vh] overflow-y-auto">
-        <h1 className="text-2xl font-semibold text-center mb-6">{isEditing ? "Edit Task" : "Task Details"}</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-semibold text-center">{isEditing ? "Edit Task" : "Task Details"}</h1>
+          {isCompleted && !isEditing && (
+            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              Completed
+            </div>
+          )}
+        </div>
         {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded mb-4">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -509,9 +632,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
                 onChange={handleInputChange}
                 readOnly={!isEditing}
                 disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md appearance-none ${
                   isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
                 }`}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
             <div>
@@ -526,9 +653,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
                 onChange={handleInputChange}
                 readOnly={!isEditing}
                 disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md appearance-none ${
                   isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
                 }`}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
           </div>
@@ -594,9 +725,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
                 onChange={handleInputChange}
                 readOnly={!isEditing}
                 disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md appearance-none ${
                   isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
                 }`}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
             <div>
@@ -611,9 +746,13 @@ export default function TaskDetailView({ taskId, selectedDate, onClose, onTaskUp
                 onChange={handleInputChange}
                 readOnly={!isEditing}
                 disabled={!isEditing}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md appearance-none ${
                   isEditing ? "focus:outline-none focus:ring-2 focus:ring-[#9706e9]" : "bg-gray-50"
                 }`}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
           </div>

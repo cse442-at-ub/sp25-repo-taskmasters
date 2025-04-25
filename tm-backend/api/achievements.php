@@ -192,9 +192,82 @@ function ensureAchievementsTablesExist($db) {
     }
 }
 
+// Function to process all completed tasks for a user and update their achievements
+function processCompletedTasksForAchievements($db, $userId) {
+    try {
+        error_log("Processing completed tasks for achievements for user ID: $userId");
+        
+        // Get all completed tasks for the user
+        $query = "SELECT ct.task_id, ct.completed_date, t.task_tags, t.task_priority, t.Task_time 
+                 FROM completed_tasks ct 
+                 JOIN tasks t ON ct.task_id = t.task_id 
+                 WHERE ct.user_id = :userId 
+                 ORDER BY ct.completed_date ASC";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->execute();
+        $completedTasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        error_log("Found " . count($completedTasks) . " completed tasks for user ID: $userId");
+        
+        // Process each task for achievement progress
+        foreach ($completedTasks as $task) {
+            // Update achievement progress for this task
+            updateAchievementProgress($db, $userId, $task['task_id']);
+        }
+        
+        // Check if any achievements should be unlocked based on the current progress
+        $query = "SELECT ap.achievement_id, ap.current_value, ap.target_value, a.name 
+                 FROM achievement_progress ap 
+                 JOIN achievements a ON ap.achievement_id = a.id 
+                 WHERE ap.user_id = :userId AND ap.current_value >= ap.target_value";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->execute();
+        $achievementsToUnlock = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        error_log("Found " . count($achievementsToUnlock) . " achievements to unlock for user ID: $userId");
+        
+        // Unlock each achievement
+        $unlockedAchievements = [];
+        foreach ($achievementsToUnlock as $achievement) {
+            // Check if the achievement is already unlocked
+            $query = "SELECT * FROM user_achievements WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievement['achievement_id']);
+            $stmt->execute();
+            
+            // If not already unlocked, unlock it
+            if ($stmt->rowCount() == 0) {
+                $result = unlockAchievement($db, $userId, $achievement['achievement_id']);
+                if ($result['success']) {
+                    $unlockedAchievements[] = $result['achievement'];
+                    error_log("Unlocked achievement: " . $achievement['name'] . " for user ID: $userId");
+                }
+            }
+        }
+        
+        return [
+            'success' => true,
+            'unlockedAchievements' => $unlockedAchievements
+        ];
+    } catch (Exception $e) {
+        error_log("Error processing completed tasks for achievements: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
+        return [
+            'success' => false,
+            'message' => 'Error processing achievements: ' . $e->getMessage()
+        ];
+    }
+}
+
 function getUserAchievementsData($db, $userId) {
     try {
         error_log("Getting achievement data for user ID: $userId");
+        
+        // Process completed tasks for achievements first
+        processCompletedTasksForAchievements($db, $userId);
         
         // Ensure user_points table exists
         $query = "SHOW TABLES LIKE 'user_points'";
@@ -713,44 +786,14 @@ function unlockAchievement($db, $userId, $achievementId) {
                     'points' => $achievementHunterDetails['points'],
                     'icon' => $achievementHunterDetails['icon']
                 ];
+                
+                // Create notification for Achievement Hunter achievement
+                createAchievementNotification($db, $userId, $achievementHunterId);
             }
         }
         
-        // Add notification for the achievement
-        $query = "SELECT id FROM achievement_notifications 
-                 WHERE user_id = :userId AND achievement_id = :achievementId";
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(':userId', $userId);
-        $stmt->bindParam(':achievementId', $achievementId);
-        $stmt->execute();
-        
-        if ($stmt->rowCount() === 0) {
-            // Ensure achievement_notifications table exists
-            $query = "SHOW TABLES LIKE 'achievement_notifications'";
-            $stmt = $db->prepare($query);
-            $stmt->execute();
-            $tableExists = $stmt->rowCount() > 0;
-            
-            if (!$tableExists) {
-                $query = "CREATE TABLE achievement_notifications (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    achievement_id INT NOT NULL,
-                    notified BOOLEAN DEFAULT 0,
-                    notification_date TIMESTAMP NULL,
-                    UNIQUE KEY unique_user_achievement (user_id, achievement_id)
-                )";
-                $db->exec($query);
-            }
-            
-            // Create notification
-            $query = "INSERT INTO achievement_notifications (user_id, achievement_id, notified) 
-                     VALUES (:userId, :achievementId, 0)";
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':userId', $userId);
-            $stmt->bindParam(':achievementId', $achievementId);
-            $stmt->execute();
-        }
+        // Create notification for the achievement
+        createAchievementNotification($db, $userId, $achievementId);
         
         $db->commit();
         
@@ -774,6 +817,340 @@ function unlockAchievement($db, $userId, $achievementId) {
         $db->rollBack();
         error_log("Error unlocking achievement: " . $e->getMessage());
         throw $e;
+    }
+}
+
+// Function to create achievement notification
+function createAchievementNotification($db, $userId, $achievementId) {
+    try {
+        error_log("Creating achievement notification for user $userId, achievement $achievementId");
+        
+        // Ensure achievement_notifications table exists
+        $query = "SHOW TABLES LIKE 'achievement_notifications'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $tableExists = $stmt->rowCount() > 0;
+        
+        if (!$tableExists) {
+            error_log("Creating achievement_notifications table");
+            $query = "CREATE TABLE achievement_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                achievement_id INT NOT NULL,
+                notified BOOLEAN DEFAULT 0,
+                read_status BOOLEAN DEFAULT 0,
+                notification_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_achievement (user_id, achievement_id)
+            )";
+            $db->exec($query);
+        } else {
+            // Check if read_status column exists
+            $query = "SHOW COLUMNS FROM achievement_notifications LIKE 'read_status'";
+            $stmt = $db->prepare($query);
+            $stmt->execute();
+            $columnExists = $stmt->rowCount() > 0;
+            
+            if (!$columnExists) {
+                // Add read_status column
+                error_log("Adding read_status column to achievement_notifications table");
+                $query = "ALTER TABLE achievement_notifications ADD COLUMN read_status BOOLEAN DEFAULT 0";
+                $db->exec($query);
+            }
+        }
+        
+        // Get achievement details for logging
+        $query = "SELECT name FROM achievements WHERE id = :achievementId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':achievementId', $achievementId);
+        $stmt->execute();
+        $achievement = $stmt->fetch(PDO::FETCH_ASSOC);
+        $achievementName = $achievement ? $achievement['name'] : 'Unknown Achievement';
+        
+        error_log("Creating notification for achievement: $achievementName");
+        
+        // Check if notification already exists
+        $query = "SELECT id FROM achievement_notifications 
+                 WHERE user_id = :userId AND achievement_id = :achievementId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':userId', $userId);
+        $stmt->bindParam(':achievementId', $achievementId);
+        $stmt->execute();
+        
+        if ($stmt->rowCount() === 0) {
+            // Create new notification
+            error_log("Creating new notification record");
+            $query = "INSERT INTO achievement_notifications (user_id, achievement_id, notified, read_status) 
+                     VALUES (:userId, :achievementId, 1, 0)";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
+            error_log("New notification created successfully");
+        } else {
+            // Update existing notification
+            error_log("Updating existing notification record");
+            $query = "UPDATE achievement_notifications 
+                     SET notified = 1, read_status = 0, notification_date = CURRENT_TIMESTAMP 
+                     WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
+            error_log("Existing notification updated successfully");
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Error creating achievement notification: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
+        return false;
+    }
+}
+
+// Function to update achievement progress when a task is completed
+function updateAchievementProgress($db, $userId, $taskId) {
+    try {
+        error_log("Updating achievement progress for user $userId and task $taskId");
+        
+        // Get task details
+        $query = "SELECT * FROM tasks WHERE task_id = :taskId";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(':taskId', $taskId);
+        $stmt->execute();
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$task) {
+            error_log("Task not found: $taskId");
+            return false;
+        }
+        
+        error_log("Task found: " . json_encode($task));
+        
+        // Ensure achievement_progress table exists
+        $query = "SHOW TABLES LIKE 'achievement_progress'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $tableExists = $stmt->rowCount() > 0;
+        
+        if (!$tableExists) {
+            error_log("Creating achievement_progress table");
+            $query = "CREATE TABLE achievement_progress (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                achievement_id INT NOT NULL,
+                current_value INT NOT NULL DEFAULT 0,
+                target_value INT NOT NULL DEFAULT 1,
+                UNIQUE KEY unique_user_achievement (user_id, achievement_id)
+            )";
+            $db->exec($query);
+        }
+        
+        // Get all achievements
+        $query = "SELECT * FROM achievements";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Update progress for each achievement based on the completed task
+        foreach ($achievements as $achievement) {
+            $achievementId = $achievement['id'];
+            $achievementName = $achievement['name'];
+            
+            // Check if user already has this achievement
+            $query = "SELECT * FROM user_achievements WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
+            
+            // Skip if user already has this achievement
+            if ($stmt->rowCount() > 0) {
+                continue;
+            }
+            
+            // Get current progress
+            $query = "SELECT * FROM achievement_progress WHERE user_id = :userId AND achievement_id = :achievementId";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':userId', $userId);
+            $stmt->bindParam(':achievementId', $achievementId);
+            $stmt->execute();
+            
+            $progress = $stmt->fetch(PDO::FETCH_ASSOC);
+            $currentValue = $progress ? $progress['current_value'] : 0;
+            $targetValue = $progress ? $progress['target_value'] : 1;
+            
+            // Determine if this task contributes to the achievement progress
+            $shouldIncrement = false;
+            $category = $task['task_tags'] ?? '';
+            
+            switch ($achievementName) {
+                case 'First Task':
+                    // Increment for any completed task if this is the first one
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+                    
+                    if ($count <= 1) { // This is the first task (count is 1 because we just inserted it)
+                        $shouldIncrement = true;
+                        $targetValue = 1;
+                    }
+                    break;
+                    
+                case 'Task Streak':
+                    // This would require a more complex check for consecutive days
+                    // For now, we'll just increment for any task
+                    $shouldIncrement = true;
+                    $targetValue = 7;
+                    break;
+                    
+                case 'Early Bird':
+                    // Check if task was completed before 9 AM
+                    $taskTime = strtotime($task['Task_time']);
+                    $morningCutoff = strtotime(date('Y-m-d') . ' 09:00:00');
+                    
+                    if ($taskTime && $taskTime < $morningCutoff) {
+                        $shouldIncrement = true;
+                        $targetValue = 5;
+                    }
+                    break;
+                    
+                case 'Night Owl':
+                    // Check if task was completed after 10 PM
+                    $taskTime = strtotime($task['Task_time']);
+                    $nightCutoff = strtotime(date('Y-m-d') . ' 22:00:00');
+                    
+                    if ($taskTime && $taskTime >= $nightCutoff) {
+                        $shouldIncrement = true;
+                        $targetValue = 5;
+                    }
+                    break;
+                    
+                case 'Task Master':
+                    // Increment for any completed task
+                    $shouldIncrement = true;
+                    $targetValue = 50;
+                    break;
+                    
+                case 'Perfect Week':
+                    // This would require a more complex check for all tasks in a week
+                    // For now, we'll just increment for any task
+                    $shouldIncrement = true;
+                    $targetValue = 1;
+                    break;
+                    
+                case 'Big Spender':
+                    // This is for purchasing avatars, not for completing tasks
+                    break;
+                    
+                case 'Time Manager':
+                    // Increment for any completed task (assuming it's on time)
+                    $shouldIncrement = true;
+                    $targetValue = 10;
+                    break;
+                    
+                case 'Task Explorer':
+                    // Check if this is a new category for the user
+                    if (!empty($category)) {
+                        $query = "SELECT COUNT(DISTINCT t.task_tags) as count 
+                                 FROM completed_tasks ct 
+                                 JOIN tasks t ON ct.task_id = t.task_id 
+                                 WHERE ct.user_id = :userId AND t.task_tags = :category";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->bindParam(':category', $category);
+                        $stmt->execute();
+                        $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+                        
+                        if ($count <= 1) { // This is the first task in this category
+                            $shouldIncrement = true;
+                            $targetValue = 5;
+                        }
+                    }
+                    break;
+                    
+                case 'Achievement Hunter':
+                    // This is for unlocking achievements, not for completing tasks
+                    break;
+                    
+                case 'Consistent Student':
+                    // Increment for School category tasks
+                    if ($category == 'School') {
+                        $shouldIncrement = true;
+                        $targetValue = 5;
+                    }
+                    break;
+                    
+                case 'Dedicated Worker':
+                    // Increment for Work category tasks
+                    if ($category == 'Work') {
+                        $shouldIncrement = true;
+                        $targetValue = 3;
+                    }
+                    break;
+                    
+                case 'Daily Task Master':
+                    // Count tasks completed today
+                    $today = date('Y-m-d');
+                    $query = "SELECT COUNT(*) as count FROM completed_tasks ct 
+                             WHERE ct.user_id = :userId AND DATE(ct.completed_date) = :today";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->bindParam(':today', $today);
+                    $stmt->execute();
+                    $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+                    
+                    if ($count >= 3) { // User has completed at least 3 tasks today
+                        $currentValue = 3;
+                        $targetValue = 3;
+                        $shouldIncrement = true;
+                    } else {
+                        $currentValue = $count;
+                        $targetValue = 3;
+                        $shouldIncrement = true;
+                    }
+                    break;
+            }
+            
+            // Update progress if needed
+            if ($shouldIncrement) {
+                if ($progress) {
+                    // Update existing progress
+                    $newValue = min($currentValue + 1, $targetValue);
+                    $query = "UPDATE achievement_progress 
+                             SET current_value = :currentValue, target_value = :targetValue 
+                             WHERE user_id = :userId AND achievement_id = :achievementId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->bindParam(':achievementId', $achievementId);
+                    $stmt->bindParam(':currentValue', $newValue);
+                    $stmt->bindParam(':targetValue', $targetValue);
+                    $stmt->execute();
+                    
+                    error_log("Updated progress for achievement $achievementName: $newValue/$targetValue");
+                } else {
+                    // Create new progress record
+                    $newValue = 1; // Start with 1 for the current task
+                    $query = "INSERT INTO achievement_progress (user_id, achievement_id, current_value, target_value) 
+                             VALUES (:userId, :achievementId, :currentValue, :targetValue)";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->bindParam(':achievementId', $achievementId);
+                    $stmt->bindParam(':currentValue', $newValue);
+                    $stmt->bindParam(':targetValue', $targetValue);
+                    $stmt->execute();
+                    
+                    error_log("Created progress for achievement $achievementName: $newValue/$targetValue");
+                }
+            }
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Error updating achievement progress: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
+        return false;
     }
 }
 

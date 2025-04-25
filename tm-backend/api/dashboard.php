@@ -288,8 +288,11 @@ function completeTask($db, $taskId, $userId, $completed) {
                 updateUserPoints($db, $userId, $points);
                 error_log("Updated user points");
                 
-                // Check for achievements
-                $achievements = checkAchievements($db, $userId);
+                // Record task completion in completed_tasks table for later achievement processing
+                // This approach allows achievements to be processed when the user visits the achievements page
+                // instead of during task completion
+                error_log("Task completed successfully. Achievements will be processed when the user visits the achievements page.");
+                $achievements = ['success' => true, 'unlockedAchievements' => []];
                 
                 // Commit the transaction
                 $db->commit();

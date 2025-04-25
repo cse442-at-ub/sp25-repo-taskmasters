@@ -116,11 +116,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     if ($userExists) {
         error_log("User found with ID: " . $userExists['user_id']);
         
-        // Generate a token
+        // Generate a token (still generating for security audit purposes)
         $token = generateToken();
         error_log("Generated token: " . substr($token, 0, 10) . "...");
         
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+        // Set expiry time to 24 hours instead of 1 hour since we're not validating tokens anymore
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
         error_log("Token expiry time: " . $expiresAt);
         
         try {
@@ -169,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             // Continue execution to return success message even if token creation fails
         }
         
-        // Send the reset email
+        // Send the reset email with email parameter instead of token
         $emailResult = sendResetEmail($email, $token);
         error_log("Email sending result: " . ($emailResult ? "Success" : "Failed"));
     } else {

@@ -91,7 +91,30 @@ export default function AvatarCustomization() {
         // First, try to get user points from dashboard API
         try {
           const dashboardResponse = await get('dashboard.php', { userId: userData.id });
-          const dashboardData = await dashboardResponse.json();
+          
+          // Check if response is ok before trying to parse JSON
+          if (!dashboardResponse.ok) {
+            throw new Error(`Server responded with status: ${dashboardResponse.status}`);
+          }
+
+          // Get the response text first
+          const dashboardText = await dashboardResponse.text();
+          
+          // Check if the response text is empty
+          if (!dashboardText || dashboardText.trim() === '') {
+            throw new Error('Empty response received from dashboard server');
+          }
+          
+          // Try to parse the JSON
+          let dashboardData;
+          try {
+            dashboardData = JSON.parse(dashboardText);
+          } catch (e) {
+            console.error('Failed to parse dashboard JSON response:', e);
+            console.error('Dashboard response text:', dashboardText);
+            throw new Error('Invalid JSON response from dashboard server');
+          }
+          
           console.log('Dashboard data:', dashboardData);
           
           if (dashboardData && dashboardData.level) {
@@ -109,11 +132,34 @@ export default function AvatarCustomization() {
           }
         } catch (error) {
           console.error('Error fetching dashboard data:', error);
+          // Continue with avatar data fetching even if dashboard data fails
         }
         
         // Then get avatar data
         const response = await get(`avatar.php?userId=${userData.id}`);
-        const data = await response.json();
+        
+        // Check if response is ok before trying to parse JSON
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+
+        // Get the response text first
+        const responseText = await response.text();
+        
+        // Check if the response text is empty
+        if (!responseText || responseText.trim() === '') {
+          throw new Error('Empty response received from server');
+        }
+        
+        // Try to parse the JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error('Failed to parse JSON response:', e);
+          console.error('Response text:', responseText);
+          throw new Error('Invalid JSON response from server');
+        }
         
         console.log('Avatar data from backend:', data);
         
@@ -215,7 +261,28 @@ export default function AvatarCustomization() {
         avatarId: avatar.id
       });
 
-      const result = await response.json();
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+
+      // Get the response text first
+      const responseText = await response.text();
+      
+      // Check if the response text is empty
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('Empty response received from server');
+      }
+      
+      // Try to parse the JSON
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse JSON response:', e);
+        console.error('Response text:', responseText);
+        throw new Error('Invalid JSON response from server');
+      }
 
       if (result.success) {
         // Update local state with new data from backend
@@ -269,7 +336,7 @@ export default function AvatarCustomization() {
       console.error('Error purchasing avatar:', error);
       
       setErrorNotification({
-        message: "Error purchasing avatar",
+        message: "Error purchasing avatar: " + error.message,
         details: "Please try again later.",
         timestamp: new Date(),
       });
@@ -311,7 +378,28 @@ export default function AvatarCustomization() {
         avatarId: avatar.id
       });
 
-      const result = await response.json();
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+
+      // Get the response text first
+      const responseText = await response.text();
+      
+      // Check if the response text is empty
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('Empty response received from server');
+      }
+      
+      // Try to parse the JSON
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse JSON response:', e);
+        console.error('Response text:', responseText);
+        throw new Error('Invalid JSON response from server');
+      }
 
       if (result.success) {
           if (result.userData && result.userData.currentAvatar) {
@@ -351,7 +439,7 @@ export default function AvatarCustomization() {
       console.error('Error selecting avatar:', error);
       
       setErrorNotification({
-        message: "Error selecting avatar",
+        message: "Error selecting avatar: " + error.message,
         details: "Please try again later.",
         timestamp: new Date(),
       });

@@ -229,7 +229,8 @@ try {
     }
     
     echo "\nAchievement system test completed.\n";
-    echo "You can now run 'php send_achievement_emails.php' to send notification emails.\n";
+    echo "You can now run 'php send_achievement_emails.php' to create achievement notifications.\n";
+    echo "Note: The system now uses in-app notifications instead of emails for achievements.\n";
     
 } catch (PDOException $e) {
     echo "Database error: " . $e->getMessage() . "\n";

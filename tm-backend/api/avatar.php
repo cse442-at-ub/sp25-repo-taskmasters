@@ -191,15 +191,19 @@ try {
 } catch(PDOException $e) {
     http_response_code(500);
     echo json_encode(array(
+        "success" => false,
         "message" => "Database error",
         "error" => $e->getMessage()
     ));
+    exit;
 } catch(Exception $e) {
     http_response_code(400);
     echo json_encode(array(
+        "success" => false,
         "message" => "Error",
         "error" => $e->getMessage()
     ));
+    exit;
 }
 
 function ensureAvatarTablesExist($db) {
@@ -473,11 +477,115 @@ function purchaseAvatar($db, $userId, $avatarId) {
         $stmt->bindParam(':userId', $userId);
         $stmt->execute();
         
+        // Insert the new avatar for the user
         $query = "INSERT INTO user_avatars (user_id, avatar_id, is_current) VALUES (:userId, :avatarId, 0)";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':userId', $userId);
         $stmt->bindParam(':avatarId', $avatarId);
         $stmt->execute();
+        
+        // Update the Big Spender achievement progress
+        try {
+            // Get the Big Spender achievement ID
+            $query = "SELECT id FROM achievements WHERE name = 'Big Spender'";
+            $stmt = $db->prepare($query);
+            $stmt->execute();
+            $bigSpenderAchievement = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($bigSpenderAchievement) {
+                $achievementId = $bigSpenderAchievement['id'];
+                
+                // Check if user already has this achievement
+                $query = "SELECT * FROM user_achievements WHERE user_id = :userId AND achievement_id = :achievementId";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':userId', $userId);
+                $stmt->bindParam(':achievementId', $achievementId);
+                $stmt->execute();
+                
+                // Only update progress if user doesn't already have the achievement
+                if ($stmt->rowCount() == 0) {
+                    // Count purchased avatars
+                    $query = "SELECT COUNT(*) as count FROM user_avatars WHERE user_id = :userId";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':userId', $userId);
+                    $stmt->execute();
+                    $avatarCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+                    
+                    // Check if achievement_progress table exists
+                    $query = "SHOW TABLES LIKE 'achievement_progress'";
+                    $stmt = $db->prepare($query);
+                    $stmt->execute();
+                    $tableExists = $stmt->rowCount() > 0;
+                    
+                    if ($tableExists) {
+                        // Check if progress record exists
+                        $query = "SELECT * FROM achievement_progress WHERE user_id = :userId AND achievement_id = :achievementId";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':userId', $userId);
+                        $stmt->bindParam(':achievementId', $achievementId);
+                        $stmt->execute();
+                        
+                        if ($stmt->rowCount() > 0) {
+                            // Update existing progress
+                            $query = "UPDATE achievement_progress 
+                                     SET current_value = :currentValue 
+                                     WHERE user_id = :userId AND achievement_id = :achievementId";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':userId', $userId);
+                            $stmt->bindParam(':achievementId', $achievementId);
+                            $stmt->bindParam(':currentValue', $avatarCount);
+                            $stmt->execute();
+                        } else {
+                            // Create new progress record
+                            $query = "INSERT INTO achievement_progress (user_id, achievement_id, current_value, target_value) 
+                                     VALUES (:userId, :achievementId, :currentValue, 5)";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':userId', $userId);
+                            $stmt->bindParam(':achievementId', $achievementId);
+                            $stmt->bindParam(':currentValue', $avatarCount);
+                            $stmt->execute();
+                        }
+                        
+                        // Check if achievement should be unlocked
+                        if ($avatarCount >= 5) {
+                            // Define the unlockAchievement function directly here instead of including achievements.php
+                            // This is a simplified version that just creates the user_achievement record
+                            $query = "INSERT IGNORE INTO user_achievements (user_id, achievement_id) VALUES (:userId, :achievementId)";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':userId', $userId);
+                            $stmt->bindParam(':achievementId', $achievementId);
+                            $stmt->execute();
+                            
+                            // Update achievement progress to mark it as complete
+                            $query = "UPDATE achievement_progress 
+                                     SET current_value = 5 
+                                     WHERE user_id = :userId AND achievement_id = :achievementId";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':userId', $userId);
+                            $stmt->bindParam(':achievementId', $achievementId);
+                            $stmt->execute();
+                            
+                            // Award points for the achievement
+                            $query = "SELECT points FROM achievements WHERE id = :achievementId";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':achievementId', $achievementId);
+                            $stmt->execute();
+                            $achievementPoints = $stmt->fetch(PDO::FETCH_ASSOC)['points'];
+                            
+                            // Update user points
+                            $query = "UPDATE user_points SET total_points = total_points + :points WHERE user_id = :userId";
+                            $stmt = $db->prepare($query);
+                            $stmt->bindParam(':userId', $userId);
+                            $stmt->bindParam(':points', $achievementPoints);
+                            $stmt->execute();
+                        }
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // Log the error but don't fail the avatar purchase
+            error_log("Error updating Big Spender achievement: " . $e->getMessage());
+        }
         
         $db->commit();
         

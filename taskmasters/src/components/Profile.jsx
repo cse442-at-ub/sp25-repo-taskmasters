@@ -309,17 +309,61 @@ export default function Profile() {
 
       // Prepare data for API - only for password changes
       const updatePayload = {
-        userId: storedUser.id,
-        email: userData.email, // Send current email, not allowing changes
-        currentPassword: updateData.currentPassword,
-        newPassword: updateData.newPassword,
+        email: userData.email, // Send email instead of userId
+        password: updateData.newPassword,
+        confirmPassword: updateData.newPassword,
       };
 
       console.log("Sending update request with payload:", updatePayload);
 
       try {
-        // Call update profile API
-        const response = await fetch(`${config.apiUrl}/update_profile.php`, {
+        // Verify current password first
+        try {
+          const verifyResponse = await fetch(`${config.apiUrl}/login.php`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            mode: "cors",
+            body: JSON.stringify({
+              email: userData.email,
+              password: updateData.currentPassword
+            }),
+          });
+          
+          // Check if response is empty before trying to parse JSON
+          const responseText = await verifyResponse.text();
+          let verifyResult = {};
+          
+          if (responseText) {
+            try {
+              verifyResult = JSON.parse(responseText);
+            } catch (e) {
+              console.error("Error parsing JSON response:", e);
+              setErrorMessage("Error verifying current password. Please try again.");
+              return;
+            }
+          }
+          
+          if (!verifyResponse.ok) {
+            setErrorMessage("Current password is incorrect");
+            return;
+          }
+          
+          // Check if login was successful by looking for the message property
+          if (!verifyResult.message || verifyResult.message !== "Login successful") {
+            setErrorMessage("Current password is incorrect");
+            return;
+          }
+        } catch (error) {
+          console.error("Error verifying password:", error);
+          setErrorMessage("Error verifying current password. Please try again.");
+          return;
+        }
+        
+        // Call reset password API after verification
+        const response = await fetch(`${config.apiUrl}/reset_password.php`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -335,10 +379,8 @@ export default function Profile() {
           const result = await response.json();
           console.log("Response data:", result);
 
-          if (result.success) {
-            setSuccessMessage(
-              result.message || "Password updated successfully!"
-            );
+          if (response.ok) {
+            setSuccessMessage("Password updated successfully!");
 
             // Clear password fields
             setUpdateData({

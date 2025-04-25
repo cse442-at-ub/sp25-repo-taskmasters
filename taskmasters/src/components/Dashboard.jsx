@@ -11,6 +11,7 @@ import {
   Menu,
   HelpCircle,
   X,
+  Bell,
 } from "lucide-react";
 import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
@@ -43,6 +44,9 @@ function Dashboard() {
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [taskToComplete, setTaskToComplete] = useState(null);
   const [userAvatar, setUserAvatar] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotification, setShowNotification] = useState(false);
+  const [currentNotification, setCurrentNotification] = useState(null);
 
   // State for current date
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -68,6 +72,57 @@ function Dashboard() {
     const baseName = filename.split('/').pop();
     return avatarImages[baseName] || null;
   };
+
+  // Check for achievement notifications
+  useEffect(() => {
+    const checkNotifications = async () => {
+      try {
+        const userData = JSON.parse(localStorage.getItem('user'));
+        if (userData && userData.id) {
+          console.log('Checking for notifications for user ID:', userData.id);
+          const response = await fetch(`${config.apiUrl}/notifications.php?userId=${userData.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Notifications response:', data);
+            if (data.notifications && data.notifications.length > 0) {
+              console.log('Found notifications:', data.notifications);
+              setNotifications(data.notifications);
+              // Show the first notification
+              setCurrentNotification(data.notifications[0]);
+              setShowNotification(true);
+              
+              // Mark notification as read
+              await fetch(`${config.apiUrl}/notifications.php`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  action: 'markAsRead',
+                  userId: userData.id,
+                  notificationId: data.notifications[0].notification_id
+                })
+              });
+            } else {
+              console.log('No new notifications found');
+            }
+          } else {
+            console.error('Error fetching notifications:', await response.text());
+          }
+        }
+      } catch (error) {
+        console.error('Error checking notifications:', error);
+      }
+    };
+    
+    // Check for notifications when component mounts
+    checkNotifications();
+    
+    // Check for notifications every 10 seconds (more frequent for testing)
+    const interval = setInterval(checkNotifications, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch user avatar
   useEffect(() => {
@@ -506,6 +561,28 @@ function Dashboard() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
+      {/* Achievement Notification */}
+      {showNotification && currentNotification && (
+        <div className="fixed top-4 right-4 z-50 max-w-md animate-fade-in">
+          <div className="flex items-center gap-3 p-4 rounded-lg shadow-lg backdrop-blur-md bg-green-500 bg-opacity-90 border border-green-600">
+            <div className="flex-shrink-0 bg-white bg-opacity-90 rounded-full p-1">
+              <Trophy className="text-green-500" size={20} />
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-bold">Achievement Unlocked!</p>
+              <p className="text-white text-sm opacity-90">
+                {currentNotification.name} (+{currentNotification.points || 100} points)
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowNotification(false)}
+              className="text-white hover:text-gray-200"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       {/* Sidebar */}
       <div
         className={`bg-white shadow-lg flex flex-col ${

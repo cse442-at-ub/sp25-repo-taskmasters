@@ -5,6 +5,99 @@ import { useNavigate } from "react-router-dom"
 import config from '../config'
 import { post } from '../utils/api'
 
+// Custom styles for select dropdown to match production
+const selectStyles = `
+  .time-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    padding-right: 2.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #374151;
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .time-select:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  /* Firefox-specific styling */
+  @-moz-document url-prefix() {
+    .time-select {
+      text-indent: 0.01px;
+      text-overflow: '';
+      padding-right: 0.75rem;
+    }
+    
+    .time-select-container .time-select-icon {
+      pointer-events: none;
+    }
+  }
+
+  .time-display {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #374151;
+    background-color: white;
+    cursor: pointer;
+  }
+  
+  .time-display:focus {
+    outline: none;
+    border-color: #9706e9;
+    box-shadow: 0 0 0 2px rgba(151, 6, 233, 0.1);
+  }
+  
+  .time-field {
+    position: relative;
+  }
+  
+  .time-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #8000ff;
+  }
+  
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .time-column::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Custom time picker styles to match theme */
+  .time-option {
+    padding: 8px 8px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  
+  .time-option:hover {
+    background-color: #f3e8ff;
+  }
+  
+  .time-option.selected {
+    background-color: #8000ff;
+    color: white;
+    font-weight: 500;
+  }
+`;
+
 export default function CreateTaskForm({ onClose }) {
   const [error, setError] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
@@ -609,14 +702,18 @@ export default function CreateTaskForm({ onClose }) {
                 Start Date
               </label>
               <div className="flex gap-2">
-                <input
-                  type="date"
-                  id="startDate"
-                  name="startDate"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
-                  value={formData.startDate}
-                  onChange={handleInputChange}
-                />
+              <input
+                type="date"
+                id="startDate"
+                name="startDate"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] appearance-none"
+                value={formData.startDate}
+                onChange={handleInputChange}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
+              />
                 <button
                   type="button"
                   onClick={() => {
@@ -645,9 +742,13 @@ export default function CreateTaskForm({ onClose }) {
                   type="date"
                   id="endDate"
                   name="endDate"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] appearance-none"
                   value={formData.endDate}
                   onChange={handleInputChange}
+                  style={{ 
+                    WebkitAppearance: "none", 
+                    MozAppearance: "textfield"
+                  }}
                 />
                 <button
                   type="button"
@@ -719,9 +820,13 @@ export default function CreateTaskForm({ onClose }) {
                 type="time"
                 id="startTime"
                 name="startTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] appearance-none"
                 value={formData.startTime}
                 onChange={handleInputChange}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
             <div>
@@ -732,9 +837,13 @@ export default function CreateTaskForm({ onClose }) {
                 type="time"
                 id="endTime"
                 name="endTime"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#9706e9] appearance-none"
                 value={formData.endTime}
                 onChange={handleInputChange}
+                style={{ 
+                  WebkitAppearance: "none", 
+                  MozAppearance: "textfield"
+                }}
               />
             </div>
           </div>

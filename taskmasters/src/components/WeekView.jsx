@@ -107,7 +107,8 @@ export default function WeekView() {
             endMinute: minutesSinceMidnight + parseInt(task.task_duration),
             date: taskDate,
             dateStr: task.task_date,
-            time: task.formatted_time
+            time: task.formatted_time,
+            completed: task.completed === "1" || task.completed === 1
           };
         });
         setTasks(formattedTasks);

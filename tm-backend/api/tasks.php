@@ -415,11 +415,11 @@ try {
             $insertStmt->execute();
             
             // Check for achievements
-            include_once '../scripts/check_all_achievements.php';
+            include_once '../api/achievements.php';
             
             try {
-                // Check achievements for the user
-                $achievementResult = checkAllAchievements($db, $userId);
+                // Check achievements for the user and task
+                $achievementResult = checkTaskAchievements($db, $userId, $taskId);
                 
                 // Return success with achievement info
                 http_response_code(200);

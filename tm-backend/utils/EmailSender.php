@@ -238,8 +238,8 @@ class EmailSender {
                 $baseUrl = $protocol . '://' . $host;
             }
             
-            // Generate the reset URL
-            $resetUrl = $baseUrl . "/#/reset-password?token=" . $token;
+            // Generate the reset URL with email parameter instead of token
+            $resetUrl = $baseUrl . "/#/reset-password?email=" . urlencode($email);
             
             // Log the reset URL for debugging
             error_log("Generated reset URL: $resetUrl");

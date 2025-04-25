@@ -71,7 +71,8 @@ export default function DayView() {
             duration: parseInt(task.task_duration),
             startMinute: minutesSinceMidnight,
             endMinute: minutesSinceMidnight + parseInt(task.task_duration),
-            dateStr: task.task_startDate || dateStr
+            dateStr: task.task_startDate || dateStr,
+            completed: task.completed === "1" || task.completed === 1
           };
         });
         setTasks(formattedTasks);
@@ -310,7 +311,7 @@ export default function DayView() {
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`${getTaskColor(task.priority)} absolute left-0 right-4 rounded-lg p-2 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden`}
+                  className={`${getTaskColor(task.priority)} absolute left-0 right-4 rounded-lg p-2 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden ${task.completed ? 'border-2 border-green-500' : ''}`}
                   style={{
                     top: `${(task.startMinute / 1440) * 100}%`,
                     height: `${(task.duration / 1440) * 100}%`,
@@ -321,7 +322,10 @@ export default function DayView() {
                   {/* For short tasks (30 min or less), show a more compact layout */}
                   {task.duration <= 30 ? (
                     <div className="flex justify-between items-center h-full">
-                      <div className="font-medium text-sm truncate flex-1">{task.title || "Untitled Task"}</div>
+                      <div className="font-medium text-sm truncate flex-1">
+                        {task.completed && <span className="mr-1">✓</span>}
+                        {task.title || "Untitled Task"}
+                      </div>
                       {task.category && (
                         <div className="text-right text-gray-600 text-xs bg-white/30 px-1 py-0.5 rounded-full ml-1 whitespace-nowrap">
                           {task.category}
@@ -331,7 +335,10 @@ export default function DayView() {
                   ) : (
                     // For longer tasks, keep the stacked layout but with better spacing
                     <div className="flex flex-col h-full">
-                      <div className="font-medium truncate">{task.title || "Untitled Task"}</div>
+                      <div className="font-medium truncate">
+                        {task.completed && <span className="mr-1">✓</span>}
+                        {task.title || "Untitled Task"}
+                      </div>
                       {task.category && (
                         <div className="text-right text-gray-600 text-sm bg-white/30 px-2 py-1 rounded-full truncate mt-1">
                           {task.category}
