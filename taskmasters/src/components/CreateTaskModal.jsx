@@ -711,7 +711,7 @@ export default function CreateTaskForm({ onClose }) {
                 onChange={handleInputChange}
                 style={{ 
                   WebkitAppearance: "none", 
-                  MozAppearance: "textfield"
+                  MozAppearance: "none"
                 }}
               />
                 <button
@@ -747,7 +747,7 @@ export default function CreateTaskForm({ onClose }) {
                   onChange={handleInputChange}
                   style={{ 
                     WebkitAppearance: "none", 
-                    MozAppearance: "textfield"
+                    MozAppearance: "none"
                   }}
                 />
                 <button
@@ -825,7 +825,7 @@ export default function CreateTaskForm({ onClose }) {
                 onChange={handleInputChange}
                 style={{ 
                   WebkitAppearance: "none", 
-                  MozAppearance: "textfield"
+                  MozAppearance: "none"
                 }}
               />
             </div>
@@ -842,7 +842,7 @@ export default function CreateTaskForm({ onClose }) {
                 onChange={handleInputChange}
                 style={{ 
                   WebkitAppearance: "none", 
-                  MozAppearance: "textfield"
+                  MozAppearance: "none"
                 }}
               />
             </div>

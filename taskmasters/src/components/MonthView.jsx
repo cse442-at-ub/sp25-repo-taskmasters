@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react"
 import TaskDetailsModal from "./TaskDetailsModal"
 import CreateTaskForm from "./CreateTaskModal"
-import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle, Menu } from "lucide-react"
+import ICSUploader from "./ICSUploader"
+import { ChevronLeft, ChevronRight, LayoutDashboard, Calendar, User, Trophy, LogOut, PlusCircle, Menu, UserCircle } from "lucide-react"
 import config from "../config"
 import { useNavigate } from "react-router-dom"
 
@@ -306,6 +307,12 @@ export default function MonthView() {
       setError(error.message)
     }
   }
+  
+  // Add this function to handle ICS uploads
+  const handleUploadComplete = (result) => {
+    // Refresh the tasks after successful upload
+    fetchTasks();
+  }
 
   return (
     <React.Fragment>
@@ -373,7 +380,7 @@ export default function MonthView() {
                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
                 title="Profile"
               >
-                <User size={20} />
+                <UserCircle size={20} />
                 {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
               </a>
             </div>
@@ -419,13 +426,16 @@ export default function MonthView() {
                 </button>
               </div>
             </div>
-            <button
-              onClick={handleAddTask}
-              className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <PlusCircle size={20} />
-              <span>Add Task</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <ICSUploader onUploadComplete={handleUploadComplete} />
+              <button
+                onClick={handleAddTask}
+                className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <PlusCircle size={20} />
+                <span>Add Task</span>
+              </button>
+            </div>
           </div>
 
           {/* View Toggle */}
