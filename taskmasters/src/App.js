@@ -5,6 +5,7 @@ import {
   Routes,
   Navigate,
 } from "react-router-dom";
+import LandingPage from './components/LandingPage';
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
 import Dashboard from "./components/Dashboard";
@@ -22,9 +23,10 @@ function App() {
     <Router>
       <Routes>
         {/* Public routes */}
-        {/* Public routes */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        
         {/* Protected routes */}
         <Route
           path="/dashboard"
@@ -91,18 +93,11 @@ function App() {
           }
         />
 
-        {/* Default route */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-
-        {/* Catch all route - redirect to login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-
-        {/* Catch all route - redirect to login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Catch all route - redirect to landing page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
 }
 
 export default App;
-
