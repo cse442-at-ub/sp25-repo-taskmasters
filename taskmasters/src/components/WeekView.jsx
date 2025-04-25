@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
 import { useNavigate } from "react-router-dom";
+import ICSUploader from "./ICSUploader";
 
 import {
   ChevronLeft,
@@ -16,6 +17,7 @@ import {
   PlusCircle,
   Menu,
   X,
+  UserCircle,
 } from "lucide-react";
 import config from "../config";
 
@@ -70,8 +72,12 @@ export default function WeekView() {
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
       // Format dates properly
-      const startDateStr = `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`;
-      const endDateStr = `${endOfWeek.getFullYear()}-${String(endOfWeek.getMonth() + 1).padStart(2, '0')}-${String(endOfWeek.getDate()).padStart(2, '0')}`;
+      const startDateStr = `${startOfWeek.getFullYear()}-${String(
+        startOfWeek.getMonth() + 1
+      ).padStart(2, "0")}-${String(startOfWeek.getDate()).padStart(2, "0")}`;
+      const endDateStr = `${endOfWeek.getFullYear()}-${String(
+        endOfWeek.getMonth() + 1
+      ).padStart(2, "0")}-${String(endOfWeek.getDate()).padStart(2, "0")}`;
 
       const response = await fetch(
         `${config.apiUrl}/tasks.php?startDate=${startDateStr}&endDate=${endDateStr}&userId=${user.id}`
@@ -81,20 +87,20 @@ export default function WeekView() {
       if (response.ok) {
         const formattedTasks = data.map((task) => {
           // Parse time in 12-hour format
-          const [time, period] = task.formatted_time.split(' '); // Split "10:10 AM" into ["10:10", "AM"]
-          let [hours, minutes] = time.split(':').map(Number);
-          
+          const [time, period] = task.formatted_time.split(" "); // Split "10:10 AM" into ["10:10", "AM"]
+          let [hours, minutes] = time.split(":").map(Number);
+
           // Convert to 24-hour format
-          if (period === 'PM' && hours !== 12) {
+          if (period === "PM" && hours !== 12) {
             hours += 12;
-          } else if (period === 'AM' && hours === 12) {
+          } else if (period === "AM" && hours === 12) {
             hours = 0;
           }
-          
+
           const minutesSinceMidnight = hours * 60 + minutes;
-          
+
           // Parse the task date properly
-          const [year, month, day] = task.task_date.split('-').map(Number);
+          const [year, month, day] = task.task_date.split("-").map(Number);
           const taskDate = new Date(year, month - 1, day);
 
           return {
@@ -107,7 +113,7 @@ export default function WeekView() {
             endMinute: minutesSinceMidnight + parseInt(task.task_duration),
             date: taskDate,
             dateStr: task.task_date,
-            time: task.formatted_time
+            time: task.formatted_time,
           };
         });
         setTasks(formattedTasks);
@@ -192,7 +198,9 @@ export default function WeekView() {
 
   // Get tasks for a specific day
   const getTasksForDay = (date) => {
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const dateStr = `${date.getFullYear()}-${String(
+      date.getMonth() + 1
+    ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     return tasks.filter((task) => task.dateStr === dateStr);
   };
 
@@ -223,16 +231,30 @@ export default function WeekView() {
     );
   };
 
+  // Add this function to handle ICS uploads
+  const handleUploadComplete = (result) => {
+    // Refresh the tasks after successful upload
+    fetchTasks();
+  };
+
   return (
     <React.Fragment>
       <div className="flex flex-col md:flex-row h-screen w-full">
         {/* Sidebar */}
-        <div className={`bg-white shadow-lg flex flex-col ${isNavbarCollapsed ? 'w-full md:w-16' : 'w-full md:w-64'} transition-all duration-300 min-h-[80px] md:min-h-screen`}>
+        <div
+          className={`bg-white shadow-lg flex flex-col ${
+            isNavbarCollapsed ? "w-full md:w-16" : "w-full md:w-64"
+          } transition-all duration-300 min-h-[80px] md:min-h-screen`}
+        >
           {/* Logo Section */}
           <div className="p-4 md:p-6 bg-[#9706e9] text-white flex justify-between items-center">
-            {!isNavbarCollapsed && <h1 className="text-xl md:text-2xl font-bold tracking-wider">TaskMasters</h1>}
-            <button 
-              onClick={() => setIsNavbarCollapsed(!isNavbarCollapsed)} 
+            {!isNavbarCollapsed && (
+              <h1 className="text-xl md:text-2xl font-bold tracking-wider">
+                TaskMasters
+              </h1>
+            )}
+            <button
+              onClick={() => setIsNavbarCollapsed(!isNavbarCollapsed)}
               className="text-white hover:bg-purple-800 p-1 rounded-md transition-all duration-200"
             >
               <Menu size={20} />
@@ -240,7 +262,13 @@ export default function WeekView() {
           </div>
 
           {/* Navigation */}
-          <nav className={`${isNavbarCollapsed ? 'hidden md:flex md:flex-col md:items-center' : 'block'} flex-1 p-4`}>
+          <nav
+            className={`${
+              isNavbarCollapsed
+                ? "hidden md:flex md:flex-col md:items-center"
+                : "block"
+            } flex-1 p-4`}
+          >
             <div className="flex flex-col md:space-y-2">
               <a
                 href="#/dashboard"
@@ -248,7 +276,9 @@ export default function WeekView() {
                 title="Dashboard"
               >
                 <LayoutDashboard size={20} />
-                {!isNavbarCollapsed && <span className="text-lg">Dashboard</span>}
+                {!isNavbarCollapsed && (
+                  <span className="text-lg">Dashboard</span>
+                )}
               </a>
               <a
                 href="#/calendar"
@@ -256,7 +286,9 @@ export default function WeekView() {
                 title="Calendar"
               >
                 <Calendar size={20} />
-                {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
+                {!isNavbarCollapsed && (
+                  <span className="text-lg">Calendar</span>
+                )}
               </a>
               <a
                 href="#/avatar-customization"
@@ -264,7 +296,9 @@ export default function WeekView() {
                 title="Avatar Customization"
               >
                 <User size={20} />
-                {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
+                {!isNavbarCollapsed && (
+                  <span className="text-lg">Avatar Customization</span>
+                )}
               </a>
               <a
                 href="#/achievements"
@@ -272,7 +306,17 @@ export default function WeekView() {
                 title="Achievements"
               >
                 <Trophy size={20} />
-                {!isNavbarCollapsed && <span className="text-lg">Achievements</span>}
+                {!isNavbarCollapsed && (
+                  <span className="text-lg">Achievements</span>
+                )}
+              </a>
+              <a
+                href="#/profile"
+                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+                title="Profile"
+              >
+                <UserCircle size={20} />
+                {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
               </a>
             </div>
           </nav>
@@ -295,7 +339,9 @@ export default function WeekView() {
           {/* Header with Date Navigation */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-8 space-y-4 md:space-y-0">
             <div className="flex items-center gap-2 md:gap-4">
-              <h1 className="text-2xl md:text-4xl font-bold">{formatMonthYear()}</h1>
+              <h1 className="text-2xl md:text-4xl font-bold">
+                {formatMonthYear()}
+              </h1>
               <div className="flex items-center gap-1 md:gap-2">
                 <button
                   onClick={handlePreviousWeek}
@@ -317,30 +363,31 @@ export default function WeekView() {
                 </button>
               </div>
             </div>
-            <button
-              onClick={handleAddTask}
-              className="bg-[#9706e9] text-white px-4 py-2 md:px-6 md:py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <PlusCircle size={18} />
-              <span>Add Task</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <ICSUploader onUploadComplete={handleUploadComplete} />
+              <button
+                onClick={handleAddTask}
+                className="bg-[#9706e9] text-white px-6 py-3 rounded-lg hover:bg-[#8005cc] flex items-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <PlusCircle size={20} />
+                <span>Add Task</span>
+              </button>
+            </div>
           </div>
 
           {/* View Toggle */}
           <div className="flex mb-4 md:mb-8">
             <button
-              onClick={() => navigate('/calendar')}
+              onClick={() => navigate("/calendar")}
               className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-l font-semibold hover:bg-[#9706e9]"
             >
               Day
             </button>
-            <button
-              className="bg-[#9706e9] text-white px-4 py-2 border-l border-r border-purple-800 font-semibold"
-            >
+            <button className="bg-[#9706e9] text-white px-4 py-2 border-l border-r border-purple-800 font-semibold">
               Week
             </button>
             <button
-              onClick={() => navigate('/month-view')}
+              onClick={() => navigate("/month-view")}
               className="bg-[#9706e9]/70 text-white px-4 py-2 rounded-r font-semibold hover:bg-[#9706e9]"
             >
               Month
@@ -354,15 +401,31 @@ export default function WeekView() {
               <div className="grid grid-cols-8 border-b sticky top-0 bg-white z-10">
                 <div className="p-2 md:p-4 border-r"></div>
                 {weekDates.map((date, index) => {
-                  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                  const dayNames = [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu",
+                    "Fri",
+                    "Sat",
+                  ];
                   const isCurrentDay = isToday(date);
                   return (
                     <div
                       key={index}
-                      className={`p-2 md:p-4 text-center border-r ${isCurrentDay ? "bg-purple-50" : ""}`}
+                      className={`p-2 md:p-4 text-center border-r ${
+                        isCurrentDay ? "bg-purple-50" : ""
+                      }`}
                     >
-                      <div className="text-sm md:font-medium">{dayNames[date.getDay()]}</div>
-                      <div className={`text-lg md:text-2xl ${isCurrentDay ? "text-[#9706e9] font-bold" : ""}`}>
+                      <div className="text-sm md:font-medium">
+                        {dayNames[date.getDay()]}
+                      </div>
+                      <div
+                        className={`text-lg md:text-2xl ${
+                          isCurrentDay ? "text-[#9706e9] font-bold" : ""
+                        }`}
+                      >
                         {date.getDate()}
                       </div>
                     </div>
@@ -378,27 +441,34 @@ export default function WeekView() {
                     <div className="p-2 md:p-4 border-r text-right text-xs md:text-sm text-gray-500 sticky left-0 bg-white">
                       {timeSlot}
                     </div>
-                    
+
                     {/* Day columns */}
                     {weekDates.map((date, dayIndex) => (
                       <div
                         key={dayIndex}
-                        className={`p-1 md:p-2 border-r relative min-h-[60px] md:min-h-[80px] ${isToday(date) ? "bg-purple-50" : ""}`}
+                        className={`p-1 md:p-2 border-r relative min-h-[60px] md:min-h-[80px] ${
+                          isToday(date) ? "bg-purple-50" : ""
+                        }`}
                       >
                         {/* Current time indicator */}
-                        {shouldShowCurrentTimeForDay(date) && timeIndex === currentTime.getHours() && (
-                          <div
-                            className="absolute left-0 w-full border-t-2 border-red-500 z-20"
-                            style={{ top: `${(currentTime.getMinutes() / 60) * 100}%` }}
-                          >
-                            <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
-                          </div>
-                        )}
+                        {shouldShowCurrentTimeForDay(date) &&
+                          timeIndex === currentTime.getHours() && (
+                            <div
+                              className="absolute left-0 w-full border-t-2 border-red-500 z-20"
+                              style={{
+                                top: `${
+                                  (currentTime.getMinutes() / 60) * 100
+                                }%`,
+                              }}
+                            >
+                              <div className="absolute -left-1 -top-1 w-2 h-2 bg-red-500 rounded-full" />
+                            </div>
+                          )}
                       </div>
                     ))}
                   </div>
                 ))}
-                
+
                 {/* Tasks positioned absolutely */}
                 {weekDates.map((date, dayIndex) => {
                   const tasksForThisDay = getTasksForDay(date);
@@ -407,10 +477,10 @@ export default function WeekView() {
                     const startHour = Math.floor(task.startMinute / 60);
                     const startMinuteInHour = task.startMinute % 60;
                     const durationHours = task.duration / 60;
-                    
+
                     // Position: 1 column for time + dayIndex for the day + 1 for 1-based index
                     const columnStart = dayIndex + 2;
-                    
+
                     return (
                       <div
                         key={`${dayIndex}-${taskIndex}`}
@@ -420,7 +490,10 @@ export default function WeekView() {
                                    absolute z-10 mx-2 overflow-hidden`}
                         style={{
                           top: `${(task.startMinute / 60) * 80}px`, // Assuming each hour is 80px high
-                          height: `${Math.max((task.duration / 60) * 80, 30)}px`,
+                          height: `${Math.max(
+                            (task.duration / 60) * 80,
+                            30
+                          )}px`,
                           left: `calc(${(columnStart - 1) / 8} * 100%)`,
                           width: `calc(100% / 8 - 16px)`,
                         }}
@@ -454,7 +527,7 @@ export default function WeekView() {
           }}
         />
       )}
-      
+
       {/* Task Details Modal */}
       {selectedTaskId && selectedTaskDate && (
         <TaskDetailView
