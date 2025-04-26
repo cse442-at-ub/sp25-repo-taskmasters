@@ -275,6 +275,48 @@ function completeTask($db, $taskId, $userId, $completed) {
             // Check for achievements
             $achievements = checkAchievements($db, $userId);
             
+            // Check for task-based achievements using the new achievements system
+            try {
+                if (file_exists('../api/achievements.php')) {
+                    error_log("achievements.php file exists, including it");
+                    include_once '../api/achievements.php';
+                    
+                    // Check if the function exists before calling it
+                    if (function_exists('checkTaskAchievements')) {
+                        error_log("checkTaskAchievements function exists, calling it for user $userId and task $taskId");
+                        $taskAchievements = checkTaskAchievements($db, $userId, $taskId);
+                        error_log("checkTaskAchievements result: " . json_encode($taskAchievements));
+                        
+                        // Merge newly unlocked achievements if any
+                        if (isset($taskAchievements['success']) && $taskAchievements['success'] && 
+                            isset($taskAchievements['unlockedAchievements']) && !empty($taskAchievements['unlockedAchievements'])) {
+                            error_log("User unlocked " . count($taskAchievements['unlockedAchievements']) . " achievements");
+                            
+                            if (!isset($achievements['newlyUnlocked'])) {
+                                $achievements['newlyUnlocked'] = [];
+                            }
+                            
+                            $achievements['newlyUnlocked'] = array_merge(
+                                $achievements['newlyUnlocked'],
+                                $taskAchievements['unlockedAchievements']
+                            );
+                            
+                            error_log("Updated achievements with newly unlocked achievements");
+                        } else {
+                            error_log("No new achievements unlocked or invalid response format");
+                        }
+                    } else {
+                        error_log("checkTaskAchievements function not found in achievements.php");
+                    }
+                } else {
+                    error_log("achievements.php file not found");
+                }
+            } catch (Exception $e) {
+                error_log("Error checking task achievements: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                // Continue execution, don't let achievement errors stop task completion
+            }
+            
             // Get updated user level
             $userLevel = getUserLevel($db, $userId);
             
