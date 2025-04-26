@@ -1,5 +1,6 @@
 "use client";
 
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Settings } from "lucide-react";
@@ -13,6 +14,7 @@ const ResetPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -21,7 +23,9 @@ const ResetPasswordPage = () => {
     return /\S+@\S+\.\S+/.test(email);
   };
 
+
   const handleRequestReset = async (e) => {
+
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -37,6 +41,7 @@ const ResetPasswordPage = () => {
     }
 
     setIsLoading(true);
+
     try {
       const response = await fetch(`${config.apiUrl}/request_password_reset.php`, {
         method: 'POST',
@@ -113,6 +118,7 @@ const ResetPasswordPage = () => {
     } finally {
       setIsLoading(false);
     }
+
   };
 
   return (
@@ -133,6 +139,7 @@ const ResetPasswordPage = () => {
           {/* Brand */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">TaskMasters</h1>
+
             <h2 className="text-2xl font-bold mb-2">
               {token ? 'Reset Password' : 'Forgot Password'}
             </h2>
@@ -220,6 +227,7 @@ const ResetPasswordPage = () => {
                 : token
                 ? 'Reset Password'
                 : 'Send Reset Link'}
+
             </button>
 
             <div className="text-center">
@@ -238,4 +246,6 @@ const ResetPasswordPage = () => {
   );
 };
 
+
 export default ResetPasswordPage;
+

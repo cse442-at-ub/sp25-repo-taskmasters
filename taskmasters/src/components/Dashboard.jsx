@@ -11,6 +11,7 @@ import {
   Menu,
   HelpCircle,
   X,
+  UserCircle,
 } from "lucide-react";
 import CreateTaskForm from "./CreateTaskModal";
 import TaskDetailView from "./TaskDetailsModal";
@@ -49,23 +50,23 @@ function Dashboard() {
 
   // Import avatar images
   const avatarImages = {
-    'Level1Avatar.png': require('../assets/Level1Avatar.png'),
-    'Level2Avatar.png': require('../assets/Level2Avatar.png'),
-    'Level3Avatar.png': require('../assets/Level3Avatar.png'),
-    'Level4Avatar.png': require('../assets/Level4Avatar.png'),
-    'Level5Avatar.png': require('../assets/Level5Avatar.png'),
-    'Level6Avatar.png': require('../assets/Level6Avatar.png'),
-    'Level7Avatar.png': require('../assets/Level7Avatar.png'),
-    'Level8Avatar.png': require('../assets/Level8Avatar.png'),
-    'Level9Avatar.png': require('../assets/Level9Avatar.png'),
-    'Level10Avatar.png': require('../assets/Level10Avatar.png'),
+    "Level1Avatar.png": require("../assets/Level1Avatar.png"),
+    "Level2Avatar.png": require("../assets/Level2Avatar.png"),
+    "Level3Avatar.png": require("../assets/Level3Avatar.png"),
+    "Level4Avatar.png": require("../assets/Level4Avatar.png"),
+    "Level5Avatar.png": require("../assets/Level5Avatar.png"),
+    "Level6Avatar.png": require("../assets/Level6Avatar.png"),
+    "Level7Avatar.png": require("../assets/Level7Avatar.png"),
+    "Level8Avatar.png": require("../assets/Level8Avatar.png"),
+    "Level9Avatar.png": require("../assets/Level9Avatar.png"),
+    "Level10Avatar.png": require("../assets/Level10Avatar.png"),
   };
 
   // Helper function to get avatar image
   const getAvatarImage = (filename) => {
     if (!filename) return null;
     // Extract just the filename if it's a path
-    const baseName = filename.split('/').pop();
+    const baseName = filename.split("/").pop();
     return avatarImages[baseName] || null;
   };
 
@@ -73,73 +74,71 @@ function Dashboard() {
   useEffect(() => {
     const fetchUserAvatar = async () => {
       try {
-        const userData = JSON.parse(localStorage.getItem('user'));
+        const userData = JSON.parse(localStorage.getItem("user"));
         if (userData && userData.id) {
           const response = await get(`avatar.php?userId=${userData.id}`);
           if (response.ok) {
             const data = await response.json();
-            console.log('Avatar data from API:', data);
+            console.log("Avatar data from API:", data);
             if (data && data.currentAvatar && data.currentAvatar.image_url) {
               // Get the avatar image using the helper function
               const avatarImg = getAvatarImage(data.currentAvatar.image_url);
-              console.log('Setting avatar image:', avatarImg);
+              console.log("Setting avatar image:", avatarImg);
               setUserAvatar(avatarImg);
             }
           }
         }
       } catch (error) {
-        console.error('Error fetching user avatar:', error);
+        console.error("Error fetching user avatar:", error);
       }
     };
 
     fetchUserAvatar();
-    
+
     // Add event listener to refresh avatar when window gets focus
     // This ensures the avatar updates when returning from avatar customization page
     const handleFocus = () => {
-      console.log('Window focused, refreshing avatar');
+      console.log("Window focused, refreshing avatar");
       fetchUserAvatar();
     };
-    
-    window.addEventListener('focus', handleFocus);
-    
+
+    window.addEventListener("focus", handleFocus);
+
     // Clean up event listener
     return () => {
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
   // Get user data from localStorage
   useEffect(() => {
-
     try {
-      const userDataString = localStorage.getItem('user');
+      const userDataString = localStorage.getItem("user");
       if (!userDataString) {
-        console.warn('No user data found in localStorage');
+        console.warn("No user data found in localStorage");
         return; // Let ProtectedRoute handle the redirect
       }
-      
+
       const userData = JSON.parse(userDataString);
-      console.log('User data from localStorage:', userData);
-      
+      console.log("User data from localStorage:", userData);
+
       if (userData && userData.id) {
-        console.log('User ID found:', userData.id);
+        console.log("User ID found:", userData.id);
         setUsername(userData.username || "User");
-        
+
         // Add a small delay before fetching data to prevent rapid API calls during page transitions
         const timer = setTimeout(() => {
           fetchDashboardData(userData.id);
         }, 100);
-        
+
         return () => clearTimeout(timer);
       } else {
-        console.warn('User ID not found in user data');
+        console.warn("User ID not found in user data");
         // Don't redirect here, let ProtectedRoute handle it
       }
     } catch (error) {
-      console.error('Error processing user data:', error);
+      console.error("Error processing user data:", error);
       // Don't redirect or clear data here, let ProtectedRoute handle it
-
     }
   }, []);
 
@@ -162,18 +161,22 @@ function Dashboard() {
 
       // First fetch dashboard data for user level and achievements
 
-      console.log(`Fetching dashboard data for userId: ${userId}, date: ${today}`);
-      
+      console.log(
+        `Fetching dashboard data for userId: ${userId}, date: ${today}`
+      );
+
       // Add retry logic for API calls
       let dashboardResponse;
       try {
-        dashboardResponse = await get('dashboard.php', { userId, date: today });
+        dashboardResponse = await get("dashboard.php", { userId, date: today });
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        
+        console.error("Error fetching dashboard data:", error);
+
         // Retry up to 3 times with increasing delay
         if (retryCount < 3) {
-          console.log(`Retrying dashboard data fetch (attempt ${retryCount + 1})`);
+          console.log(
+            `Retrying dashboard data fetch (attempt ${retryCount + 1})`
+          );
           setTimeout(() => {
             fetchDashboardData(userId, retryCount + 1);
           }, 500 * (retryCount + 1));
@@ -182,7 +185,7 @@ function Dashboard() {
           throw error;
         }
       }
-      
+
       if (dashboardResponse.ok) {
         const dashboardData = await dashboardResponse.json();
         console.log("Dashboard data:", dashboardData);
@@ -498,7 +501,7 @@ function Dashboard() {
           <div className="flex flex-col md:space-y-2">
             <a
               href="#/dashboard"
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              className="flex items-center gap-3 px-4 py-3 bg-[#9706e9] text-white rounded-lg transition-all duration-200"
               title="Dashboard"
             >
               <LayoutDashboard size={20} />
@@ -536,6 +539,14 @@ function Dashboard() {
               {!isNavbarCollapsed && (
                 <span className="text-lg">Achievements</span>
               )}
+            </a>
+            <a
+              href="#/profile"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              title="Profile"
+            >
+              <UserCircle size={20} />
+              {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
             </a>
           </div>
         </nav>
@@ -622,22 +633,25 @@ function Dashboard() {
               className="mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-[#9706e9] text-white rounded-lg hover:bg-[#8005cc] transition-all duration-200 shadow-md no-underline"
             >
               <Trophy size={18} />
-              <span className="no-underline">View Achievements ({achievements.total})</span>
+              <span className="no-underline">
+                View Achievements ({achievements.total})
+              </span>
             </a>
 
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#9706e9] to-[#e5cef2] shadow-md">
-              {/* User avatar from avatar customization */}
-              {userAvatar ? (
-                <img 
-                  src={userAvatar}
-                  alt="User Avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
-                  {username ? username.charAt(0).toUpperCase() : "U"}
-                </div>
-              )}
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#9706e9] to-[#e5cef2] shadow-md cursor-pointer hover:shadow-lg transition-all duration-200">
+              <a href="#/avatar-customization" className="block w-full h-full">
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt="User Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                    {username ? username.charAt(0).toUpperCase() : "U"}
+                  </div>
+                )}
+              </a>
             </div>
           </div>
 
@@ -912,14 +926,18 @@ function Dashboard() {
           taskId={selectedTaskId}
           selectedDate={(() => {
             // Find the task with the matching ID
-            const task = [...tasks, ...completedTasks].find(t => t.id === selectedTaskId);
+            const task = [...tasks, ...completedTasks].find(
+              (t) => t.id === selectedTaskId
+            );
             // Use the task's date if available, otherwise use current date
-            return task && task.date ? task.date : new Date().toISOString().split("T")[0];
+            return task && task.date
+              ? task.date
+              : new Date().toISOString().split("T")[0];
           })()}
           onClose={() => setSelectedTaskId(null)}
           onTaskUpdated={() => {
             // Refresh dashboard data to show updated tasks
-            const userData = JSON.parse(localStorage.getItem('user'));
+            const userData = JSON.parse(localStorage.getItem("user"));
             if (userData && userData.id) {
               fetchDashboardData(userData.id);
             }

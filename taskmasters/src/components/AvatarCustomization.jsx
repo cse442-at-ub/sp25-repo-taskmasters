@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  UserCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import avatarBackground from "../assets/AvatarBackground.png";
@@ -31,20 +32,30 @@ import level9Avatar from "../assets/Level9Avatar.png";
 import level10Avatar from "../assets/Level10Avatar.png";
 
 export default function AvatarCustomization() {
-
   const getAvatarImage = (filename) => {
     switch (filename) {
-      case 'Level1Avatar.png': return level1Avatar;
-      case 'Level2Avatar.png': return level2Avatar;
-      case 'Level3Avatar.png': return level3Avatar;
-      case 'Level4Avatar.png': return level4Avatar;
-      case 'Level5Avatar.png': return level5Avatar;
-      case 'Level6Avatar.png': return level6Avatar;
-      case 'Level7Avatar.png': return level7Avatar;
-      case 'Level8Avatar.png': return level8Avatar;
-      case 'Level9Avatar.png': return level9Avatar;
-      case 'Level10Avatar.png': return level10Avatar;
-      default: return level1Avatar; // Default fallback
+      case "Level1Avatar.png":
+        return level1Avatar;
+      case "Level2Avatar.png":
+        return level2Avatar;
+      case "Level3Avatar.png":
+        return level3Avatar;
+      case "Level4Avatar.png":
+        return level4Avatar;
+      case "Level5Avatar.png":
+        return level5Avatar;
+      case "Level6Avatar.png":
+        return level6Avatar;
+      case "Level7Avatar.png":
+        return level7Avatar;
+      case "Level8Avatar.png":
+        return level8Avatar;
+      case "Level9Avatar.png":
+        return level9Avatar;
+      case "Level10Avatar.png":
+        return level10Avatar;
+      default:
+        return level1Avatar; // Default fallback
     }
   };
   const navigate = useNavigate();
@@ -65,93 +76,97 @@ export default function AvatarCustomization() {
     const fetchAvatarData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Get user data with error handling
         let userData;
         try {
-          const userDataString = localStorage.getItem('user');
+          const userDataString = localStorage.getItem("user");
           if (!userDataString) {
-            console.warn('User data not found in localStorage');
+            console.warn("User data not found in localStorage");
             // Let ProtectedRoute handle the redirect
             return;
           }
-          
+
           userData = JSON.parse(userDataString);
           if (!userData || !userData.id) {
-            console.warn('User ID not found in user data');
+            console.warn("User ID not found in user data");
             // Let ProtectedRoute handle the redirect
             return;
           }
         } catch (error) {
-          console.error('Error processing user data:', error);
+          console.error("Error processing user data:", error);
           // Don't redirect or clear data here, let ProtectedRoute handle it
           return;
         }
 
         // First, try to get user points from dashboard API
         try {
-          const dashboardResponse = await get('dashboard.php', { userId: userData.id });
+          const dashboardResponse = await get("dashboard.php", {
+            userId: userData.id,
+          });
           const dashboardData = await dashboardResponse.json();
-          console.log('Dashboard data:', dashboardData);
-          
+          console.log("Dashboard data:", dashboardData);
+
           if (dashboardData && dashboardData.level) {
             if (dashboardData.level.totalPoints !== undefined) {
               const points = parseInt(dashboardData.level.totalPoints);
               setUserPoints(points);
-              console.log('Setting user points from dashboard to:', points);
+              console.log("Setting user points from dashboard to:", points);
             }
-            
+
             if (dashboardData.level.currentLevel !== undefined) {
               const level = parseInt(dashboardData.level.currentLevel);
               setUserLevel(level);
-              console.log('Setting user level from dashboard to:', level);
+              console.log("Setting user level from dashboard to:", level);
             }
           }
         } catch (error) {
-          console.error('Error fetching dashboard data:', error);
+          console.error("Error fetching dashboard data:", error);
         }
-        
+
         // Then get avatar data
         const response = await get(`avatar.php?userId=${userData.id}`);
         const data = await response.json();
-        
-        console.log('Avatar data from backend:', data);
-        
+
+        console.log("Avatar data from backend:", data);
+
         if (data) {
           // Set current avatar if available
           if (data.currentAvatar) {
             // Get just the filename from the path
-            const filename = data.currentAvatar.image_url.split('/').pop();
+            const filename = data.currentAvatar.image_url.split("/").pop();
             // Use the direct import for the image
             setCurrentAvatar({
               id: data.currentAvatar.avatar_id,
               name: data.currentAvatar.name,
               image: getAvatarImage(filename),
-              isCurrentAvatar: true
+              isCurrentAvatar: true,
             });
           }
-          
+
           // Set purchased avatars
           if (data.ownedAvatars) {
-            const purchasedIds = data.ownedAvatars.map(avatar => parseInt(avatar.avatar_id));
+            const purchasedIds = data.ownedAvatars.map((avatar) =>
+              parseInt(avatar.avatar_id)
+            );
             setPurchasedAvatars(purchasedIds);
           }
-          
+
           // Set available avatars
           if (data.availableAvatars) {
             setAvailableAvatars(data.availableAvatars);
           }
-          
+
           // Set user points from avatar API if available and not already set from dashboard
-          console.log('User points from avatar API:', data.totalPoints);
+          console.log("User points from avatar API:", data.totalPoints);
           if (data.totalPoints !== undefined) {
             const points = parseInt(data.totalPoints);
             setUserPoints(points);
-            console.log('Setting user points from avatar API to:', points);
+            console.log("Setting user points from avatar API to:", points);
           }
         }
       } catch (error) {
-        console.error('Error fetching avatar data:', error);
+        console.error("Error fetching avatar data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -167,7 +182,6 @@ export default function AvatarCustomization() {
   const closePreview = () => {
     setPreviewAvatar(null);
   };
-
 
   const handlePurchase = async (avatar) => {
     try {
@@ -189,30 +203,30 @@ export default function AvatarCustomization() {
       // Get user data with error handling
       let userData;
       try {
-        const userDataString = localStorage.getItem('user');
+        const userDataString = localStorage.getItem("user");
         if (!userDataString) {
-          console.warn('User data not found in localStorage');
+          console.warn("User data not found in localStorage");
           // Let ProtectedRoute handle the redirect
           return;
         }
-        
+
         userData = JSON.parse(userDataString);
         if (!userData || !userData.id) {
-          console.warn('User ID not found in user data');
+          console.warn("User ID not found in user data");
           // Let ProtectedRoute handle the redirect
           return;
         }
       } catch (error) {
-        console.error('Error processing user data:', error);
+        console.error("Error processing user data:", error);
         // Don't redirect or clear data here, let ProtectedRoute handle it
         return;
       }
 
       // Call backend API to purchase avatar
-      const response = await post('avatar.php', {
-        action: 'purchaseAvatar',
+      const response = await post("avatar.php", {
+        action: "purchaseAvatar",
         userId: userData.id,
-        avatarId: avatar.id
+        avatarId: avatar.id,
       });
 
       const result = await response.json();
@@ -223,20 +237,24 @@ export default function AvatarCustomization() {
           if (result.userData.totalPoints !== undefined) {
             setUserPoints(parseInt(result.userData.totalPoints));
           }
-          
+
           if (result.userData.ownedAvatars) {
-            const purchasedIds = result.userData.ownedAvatars.map(avatar => parseInt(avatar.avatar_id));
+            const purchasedIds = result.userData.ownedAvatars.map((avatar) =>
+              parseInt(avatar.avatar_id)
+            );
             setPurchasedAvatars(purchasedIds);
           }
-          
+
           if (result.userData.currentAvatar) {
             // Get just the filename from the path
-            const filename = result.userData.currentAvatar.image_url.split('/').pop();
+            const filename = result.userData.currentAvatar.image_url
+              .split("/")
+              .pop();
             setCurrentAvatar({
               id: result.userData.currentAvatar.avatar_id,
               name: result.userData.currentAvatar.name,
               image: getAvatarImage(filename),
-              isCurrentAvatar: true
+              isCurrentAvatar: true,
             });
           }
         } else {
@@ -266,8 +284,8 @@ export default function AvatarCustomization() {
         }, 3000);
       }
     } catch (error) {
-      console.error('Error purchasing avatar:', error);
-      
+      console.error("Error purchasing avatar:", error);
+
       setErrorNotification({
         message: "Error purchasing avatar",
         details: "Please try again later.",
@@ -285,44 +303,46 @@ export default function AvatarCustomization() {
       // Get user data with error handling
       let userData;
       try {
-        const userDataString = localStorage.getItem('user');
+        const userDataString = localStorage.getItem("user");
         if (!userDataString) {
-          console.warn('User data not found in localStorage');
+          console.warn("User data not found in localStorage");
           // Let ProtectedRoute handle the redirect
           return;
         }
-        
+
         userData = JSON.parse(userDataString);
         if (!userData || !userData.id) {
-          console.warn('User ID not found in user data');
+          console.warn("User ID not found in user data");
           // Let ProtectedRoute handle the redirect
           return;
         }
       } catch (error) {
-        console.error('Error processing user data:', error);
+        console.error("Error processing user data:", error);
         // Don't redirect or clear data here, let ProtectedRoute handle it
         return;
       }
 
       // Call backend API to select avatar
-      const response = await post('avatar.php', {
-        action: 'selectAvatar',
+      const response = await post("avatar.php", {
+        action: "selectAvatar",
         userId: userData.id,
-        avatarId: avatar.id
+        avatarId: avatar.id,
       });
 
       const result = await response.json();
 
       if (result.success) {
-          if (result.userData && result.userData.currentAvatar) {
-            // Get just the filename from the path
-            const filename = result.userData.currentAvatar.image_url.split('/').pop();
-            setCurrentAvatar({
-              id: result.userData.currentAvatar.avatar_id,
-              name: result.userData.currentAvatar.name,
-              image: getAvatarImage(filename),
-              isCurrentAvatar: true
-            });
+        if (result.userData && result.userData.currentAvatar) {
+          // Get just the filename from the path
+          const filename = result.userData.currentAvatar.image_url
+            .split("/")
+            .pop();
+          setCurrentAvatar({
+            id: result.userData.currentAvatar.avatar_id,
+            name: result.userData.currentAvatar.name,
+            image: getAvatarImage(filename),
+            isCurrentAvatar: true,
+          });
         } else {
           setCurrentAvatar(avatar);
         }
@@ -348,8 +368,8 @@ export default function AvatarCustomization() {
         }, 3000);
       }
     } catch (error) {
-      console.error('Error selecting avatar:', error);
-      
+      console.error("Error selecting avatar:", error);
+
       setErrorNotification({
         message: "Error selecting avatar",
         details: "Please try again later.",
@@ -363,35 +383,58 @@ export default function AvatarCustomization() {
   };
 
   // Map backend avatar data to frontend format
-  const avatars = availableAvatars.map(avatar => {
+  const avatars = availableAvatars.map((avatar) => {
     // Use the direct import for the image
     const imageUrl = avatar.image_url;
     // Remove any path prefixes to get just the filename
-    const filename = imageUrl.split('/').pop();
-    
+    const filename = imageUrl.split("/").pop();
+
     return {
       id: parseInt(avatar.avatar_id),
       price: avatar.cost,
       name: avatar.name,
       image: getAvatarImage(filename), // Use the helper function to get the imported image
       imageUrl: filename,
-      isOwned: avatar.is_owned
+      isOwned: avatar.is_owned,
     };
   });
 
   // Use backend avatars if available, otherwise use static avatars
-  const displayAvatars = avatars.length > 0 ? avatars : [
-    { id: 1, price: 100, name: "Novice Explorer", image: level1Avatar },
-    { id: 2, price: 300, name: "Task Apprentice", image: level2Avatar },
-    { id: 3, price: 500, name: "Productivity Adept", image: level3Avatar },
-    { id: 4, price: 750, name: "Time Wizard", image: level4Avatar },
-    { id: 5, price: 1000, name: "Focus Master", image: level5Avatar },
-    { id: 6, price: 1500, name: "Project Sage", image: level6Avatar },
-    { id: 7, price: 2500, name: "Efficiency Guru", image: level7Avatar },
-    { id: 8, price: 3000, name: "Achievement Titan", image: level8Avatar },
-    { id: 9, price: 4000, name: "Legendary Organizer", image: level9Avatar },
-    { id: 10, price: 5000, name: "Ultimate Taskmaster", image: level10Avatar },
-  ];
+  const displayAvatars =
+    avatars.length > 0
+      ? avatars
+      : [
+          { id: 1, price: 100, name: "Novice Explorer", image: level1Avatar },
+          { id: 2, price: 300, name: "Task Apprentice", image: level2Avatar },
+          {
+            id: 3,
+            price: 500,
+            name: "Productivity Adept",
+            image: level3Avatar,
+          },
+          { id: 4, price: 750, name: "Time Wizard", image: level4Avatar },
+          { id: 5, price: 1000, name: "Focus Master", image: level5Avatar },
+          { id: 6, price: 1500, name: "Project Sage", image: level6Avatar },
+          { id: 7, price: 2500, name: "Efficiency Guru", image: level7Avatar },
+          {
+            id: 8,
+            price: 3000,
+            name: "Achievement Titan",
+            image: level8Avatar,
+          },
+          {
+            id: 9,
+            price: 4000,
+            name: "Legendary Organizer",
+            image: level9Avatar,
+          },
+          {
+            id: 10,
+            price: 5000,
+            name: "Ultimate Taskmaster",
+            image: level10Avatar,
+          },
+        ];
 
   // Function to check if user has enough points for an avatar
   const canPurchaseAvatar = (avatar) => {
@@ -400,12 +443,11 @@ export default function AvatarCustomization() {
 
   // Function to check if avatar is already purchased
   const isAvatarPurchased = (avatarId) => {
-
     if (purchasedAvatars.includes(avatarId)) {
       return true;
     }
-    
-    const avatar = displayAvatars.find(a => a.id === avatarId);
+
+    const avatar = displayAvatars.find((a) => a.id === avatarId);
     return avatar && avatar.isOwned;
   };
 
@@ -424,7 +466,10 @@ export default function AvatarCustomization() {
         <div className="fixed top-4 right-4 z-50 max-w-md">
           <div className="bg-green-500 text-white p-4 rounded-lg shadow-lg">
             <p className="font-bold">Avatar successfully purchased!</p>
-            <p>You've acquired {purchaseNotification.avatar.name} for {purchaseNotification.avatar.price} points.</p>
+            <p>
+              You've acquired {purchaseNotification.avatar.name} for{" "}
+              {purchaseNotification.avatar.price} points.
+            </p>
           </div>
         </div>
       )}
@@ -438,13 +483,11 @@ export default function AvatarCustomization() {
         </div>
       )}
 
-
       {errorNotification && (
         <div className="fixed top-4 right-4 z-50 max-w-md">
           <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg">
             <p className="font-bold">{errorNotification.message}</p>
             <p>{errorNotification.details}</p>
-
           </div>
         </div>
       )}
@@ -496,13 +539,14 @@ export default function AvatarCustomization() {
               {!isNavbarCollapsed && <span className="text-lg">Calendar</span>}
             </a>
             <a
-
               href="#/avatar-customization"
               className="flex items-center gap-3 px-4 py-3 bg-[#9706e9] text-white rounded-lg transition-all duration-200"
               title="Avatar Customization"
             >
               <User size={20} />
-              {!isNavbarCollapsed && <span className="text-lg">Avatar Customization</span>}
+              {!isNavbarCollapsed && (
+                <span className="text-lg">Avatar Customization</span>
+              )}
             </a>
             <a
               href="#/achievements"
@@ -513,6 +557,14 @@ export default function AvatarCustomization() {
               {!isNavbarCollapsed && (
                 <span className="text-lg">Achievements</span>
               )}
+            </a>
+            <a
+              href="#/profile"
+              className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-[#9706e9] hover:text-white rounded-lg transition-all duration-200"
+              title="Profile"
+            >
+              <UserCircle size={20} />
+              {!isNavbarCollapsed && <span className="text-lg">Profile</span>}
             </a>
           </div>
         </nav>
@@ -543,7 +595,6 @@ export default function AvatarCustomization() {
       >
         {/* Header */}
         <div className="p-6 flex justify-between items-center">
-
           <h1 className="text-5xl font-bold">Avatar Customization</h1>
           <div className="flex items-center gap-4">
             <div className="px-4 py-2 rounded bg-black bg-opacity-40 border-2 border-[#9706e9] shadow-md shadow-purple-900/50">
@@ -559,7 +610,6 @@ export default function AvatarCustomization() {
           </div>
         </div>
 
-
         {/* Avatar Grid */}
         <div className="px-6 grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8 pb-20">
           {/* Current Avatar */}
@@ -568,8 +618,9 @@ export default function AvatarCustomization() {
             <div className="flex justify-center">
               <div
                 className="w-64 h-64 rounded-full bg-[#330033] p-2 overflow-hidden border-4 border-[#9706e9] shadow-lg shadow-purple-900/50 cursor-pointer hover:border-white transition-all duration-200"
-
-                onClick={() => currentAvatar && handleAvatarClick(currentAvatar)}
+                onClick={() =>
+                  currentAvatar && handleAvatarClick(currentAvatar)
+                }
               >
                 {currentAvatar ? (
                   <img
@@ -591,7 +642,6 @@ export default function AvatarCustomization() {
             </div>
           </div>
 
-
           {/* Available Avatars */}
           <div className="rounded-lg p-6 backdrop-blur-sm bg-black bg-opacity-30">
             <h2 className="text-2xl font-bold mb-6">Purchase avatar</h2>
@@ -604,7 +654,6 @@ export default function AvatarCustomization() {
                 return (
                   <div
                     key={avatar.id}
-
                     className={`relative ${isOwned ? "opacity-60" : ""}`}
                   >
                     <div
@@ -615,7 +664,6 @@ export default function AvatarCustomization() {
                     >
                       <img
                         src={avatar.image}
-
                         alt={avatar.name}
                         className="w-full h-full object-cover rounded-md"
                       />
@@ -637,7 +685,6 @@ export default function AvatarCustomization() {
                         </span>
                       </div>
                     </div>
-
                   </div>
                 );
               })}
