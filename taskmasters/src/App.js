@@ -6,17 +6,19 @@ import {
   Navigate,
 } from "react-router-dom";
 import LandingPage from './components/LandingPage';
-import LoginPage from "./components/LoginPage";
-import RegisterPage from "./components/RegisterPage";
-import Dashboard from "./components/Dashboard";
-import DayView from "./components/DayView";
-import WeekView from "./components/WeekView";
-import MonthView from "./components/MonthView";
-import AvatarCustomization from "./components/AvatarCustomization";
-import Achievements from "./components/Achievements";
-import Profile from "./components/Profile";
-import ProtectedRoute from "./components/ProtectedRoute";
-import "./index.css";
+
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
+import Dashboard from './components/Dashboard';
+import DayView from './components/DayView';
+import WeekView from './components/WeekView';
+import MonthView from './components/MonthView';
+import AvatarCustomization from './components/AvatarCustomization';
+import Achievements from './components/Achievements';
+import ProtectedRoute from './components/ProtectedRoute';
+import './index.css';
+
 
 function App() {
   return (
@@ -26,7 +28,9 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        
+
+        <Route path="/forgot-password" element={<ResetPasswordPage />} />
+
         {/* Protected routes */}
         <Route
           path="/dashboard"
